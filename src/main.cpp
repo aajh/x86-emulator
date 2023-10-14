@@ -9,13 +9,13 @@
 
 #include "instruction.hpp"
 
-[[noreturn]] void print_errno_and_exit(const char* what = nullptr) {
+[[noreturn]] static void print_errno_and_exit(const char* what = nullptr) {
     fflush(stdout);
     fprintf(stderr, "%s: %s\n", what ? what : "error", strerror(errno));
     exit(EXIT_FAILURE);
 }
 
-Program read_program(FILE* input_file) {
+static Program read_program(FILE* input_file) {
     Program program;
 
     if (fseek(input_file, 0, SEEK_END)) {
@@ -44,8 +44,7 @@ Program read_program(FILE* input_file) {
     return program;
 }
 
-Program read_program(const char* filename) {
-
+static Program read_program(const char* filename) {
     FILE* input_file = fopen(filename, "rb");
     if (!input_file) {
         fprintf(stderr, "Couldn't open file ");
@@ -56,7 +55,7 @@ Program read_program(const char* filename) {
     return read_program(input_file);
 }
 
-void disassemble_program(FILE* out, const Program& program) {
+static void disassemble_program(FILE* out, const Program& program) {
     fprintf(out, "; disassembly:\n");
     fprintf(out, "bits 16\n\n");
 
@@ -73,14 +72,14 @@ void disassemble_program(FILE* out, const Program& program) {
     }
 }
 
-void disassemble_file(FILE* out, const char* filename) {
+static void disassemble_file(FILE* out, const char* filename) {
     auto program = read_program(filename);
     defer { delete[] program.data; };
 
     disassemble_program(out, program);
 }
 
-void test(const char* filename) {
+static void test_disassembler(const char* filename) {
     auto program = read_program(filename);
     defer { delete[] program.data; };
 
@@ -89,7 +88,7 @@ void test(const char* filename) {
     if (disassembled_fd == -1) {
         print_errno_and_exit("mkstemp");
     }
-    defer { close(disassembled_fd); };
+    defer { close(disassembled_fd); unlink(disassembled_filename.data()); };
 
     auto disassembled_file = fdopen(disassembled_fd, "wb");
     if (disassembled_file == nullptr) {
@@ -107,7 +106,7 @@ void test(const char* filename) {
     if (reassembled_fd == -1) {
         print_errno_and_exit("mkstemp");
     }
-    defer { close(reassembled_fd); };
+    defer { close(reassembled_fd); unlink(reassembled_filename.data()); };
 
     printf("Reassembling %s to %s\n", disassembled_filename.data(), reassembled_filename.data());
     {
@@ -162,7 +161,7 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
 
-        test("../computer_enhance/perfaware/part1/listing_0041_add_sub_cmp_jnz");
+        test_disassembler("../computer_enhance/perfaware/part1/listing_0041_add_sub_cmp_jnz");
     } else {
         disassemble_file(stdout, argv[1]);
     }
