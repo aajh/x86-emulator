@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include <functional>
 #include <new>
 #include <string>
 #include <cstdlib>
@@ -9,50 +10,41 @@
 
 #include "instruction.hpp"
 
-static Program read_program(FILE* input_file, std::error_code& ec) {
+static expected<Program, error_code> read_program(FILE* input_file) {
     Program program;
 
-    SET_ERRNO(fseek(input_file, 0, SEEK_END));
-    SET_ERRNO(fseek(input_file, 0, SEEK_END));
+    RET_ERRNO(fseek(input_file, 0, SEEK_END));
 
     const auto ftell_result = ftell(input_file);
-    SET_ERRNO(ftell_result < 0);
+    RET_ERRNO(ftell_result < 0);
     program.size = ftell_result;
 
-    SET_ERRNO(fseek(input_file, 0, SEEK_SET));
+    RET_ERRNO(fseek(input_file, 0, SEEK_SET));
 
     program.data = new(std::nothrow) u8[program.size];
-    if (program.data == nullptr) {
-        ec = std::make_error_code(std::errc::not_enough_memory);
-        return {};
-    }
+    if (program.data == nullptr) return make_unexpected(std::errc::not_enough_memory);
 
     if (fread(program.data, 1, program.size, input_file) != program.size) {
         delete[] program.data;
-        if (feof(input_file)) {
-            ec = Errc::EndOfFile;
-        } else {
-            ec = make_error_code();
-        }
-        return {};
+        if (feof(input_file)) return unexpected(Errc::EndOfFile);
+        return make_unexpected_errno();
     }
 
     return program;
 }
 
-static Program read_program(const char* filename, std::error_code& ec) {
+static expected<Program, error_code> read_program(const char* filename) {
     FILE* input_file = fopen(filename, "rb");
     if (!input_file) {
         fprintf(stderr, "Couldn't open file %s\n", filename);
-        ec = make_error_code();
-        return {};
+        return make_unexpected_errno();
     }
-    defer { fclose(input_file); };
+    DEFER { fclose(input_file); };
 
-    return read_program(input_file, ec);
+    return read_program(input_file);
 }
 
-static std::error_code disassemble_program(FILE* out, const Program& program) {
+static error_code disassemble_program(FILE* out, const Program& program) {
     fprintf(out, "; disassembly:\n");
     fprintf(out, "bits 16\n\n");
 
@@ -72,29 +64,26 @@ static std::error_code disassemble_program(FILE* out, const Program& program) {
     return {};
 }
 
-static std::error_code disassemble_file(FILE* out, const char* filename) {
-    std::error_code ec;
-    RET_EC(auto program = read_program(filename, ec));
-    defer { delete[] program.data; };
+static error_code disassemble_file(FILE* out, const char* filename) {
+    UNWRAP_BARE(auto program, read_program(filename));
+    DEFER { delete[] program.data; };
 
     return disassemble_program(out, program);
 }
 
 
-static std::error_code test_disassembler(const char* filename) {
-    std::error_code ec;
-
-    RET_EC(auto program = read_program(filename, ec));
-    defer { delete[] program.data; };
+static error_code test_disassembler(const char* filename) {
+    UNWRAP_BARE(auto program, read_program(filename));
+    DEFER { delete[] program.data; };
 
     std::string disassembled_filename = "/tmp/x86-sim.asm.XXXXXX";
     auto disassembled_fd = mkstemp(disassembled_filename.data());
-    RET_ERRNO(disassembled_fd == -1);
-    defer { close(disassembled_fd); unlink(disassembled_filename.data()); };
+    RET_BARE_ERRNO(disassembled_fd == -1);
+    DEFER { close(disassembled_fd); unlink(disassembled_filename.data()); };
 
     auto disassembled_file = fdopen(disassembled_fd, "wb");
-    RET_ERRNO(disassembled_file == nullptr);
-    defer { fclose(disassembled_file); };
+    RET_BARE_ERRNO(disassembled_file == nullptr);
+    DEFER { fclose(disassembled_file); };
 
     printf("\nDisassembling %s to %s\n", filename, disassembled_filename.data());
     RET_IF(disassemble_program(disassembled_file, program));
@@ -103,8 +92,8 @@ static std::error_code test_disassembler(const char* filename) {
 
     std::string reassembled_filename = "/tmp/x86-sim_nasm.out.XXXXXX";
     auto reassembled_fd = mkstemp(reassembled_filename.data());
-    RET_ERRNO(reassembled_fd == -1);
-    defer { close(reassembled_fd); unlink(reassembled_filename.data()); };
+    RET_BARE_ERRNO(reassembled_fd == -1);
+    DEFER { close(reassembled_fd); unlink(reassembled_filename.data()); };
 
     printf("Reassembling %s to %s\n", disassembled_filename.data(), reassembled_filename.data());
     {
@@ -120,11 +109,11 @@ static std::error_code test_disassembler(const char* filename) {
 
 
     auto reassembled_file = fdopen(reassembled_fd, "rb");
-    RET_ERRNO(reassembled_file == nullptr);
-    defer { fclose(reassembled_file); };
+    RET_BARE_ERRNO(reassembled_file == nullptr);
+    DEFER { fclose(reassembled_file); };
 
-    RET_EC(auto reassembled_program = read_program(reassembled_file, ec));
-    defer { delete[] reassembled_program.data; };
+    UNWRAP_BARE(auto reassembled_program, read_program(reassembled_file));
+    DEFER { delete[] reassembled_program.data; };
 
     if (program.size != reassembled_program.size) {
         fflush(stdout);
@@ -149,7 +138,7 @@ const char* tests[] = {
     "part1/listing_0042_completionist_decode",
 };
 
-static std::error_code run_tests() {
+static error_code run_tests() {
     std::string filename;
     for (auto test : tests) {
         filename = test_prefix;

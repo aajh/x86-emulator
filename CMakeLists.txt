@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(x86-sim)
 add_subdirectory(src)
+target_include_directories(x86-sim PRIVATE "${PROJECT_SOURCE_DIR}/lib/include")
 target_link_libraries(x86-sim PRIVATE exercise_compiler_flags)
 
 

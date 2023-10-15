@@ -22,6 +22,6 @@ namespace {
     } err_category;
 }
 
-std::error_code make_error_code(Errc e) {
+error_code make_error_code(Errc e) {
     return {static_cast<int>(e), err_category};
 }
