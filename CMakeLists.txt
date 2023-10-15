@@ -7,6 +7,8 @@ target_compile_features(exercise_compiler_flags INTERFACE cxx_std_20)
 target_compile_options(exercise_compiler_flags INTERFACE "-fno-exceptions;-Wall;-Wextra;-Wpedantic;-fsanitize=address,undefined")
 target_link_options(exercise_compiler_flags INTERFACE "-fsanitize=address,undefined")
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 add_executable(x86-sim)
 add_subdirectory(src)
 target_link_libraries(x86-sim PRIVATE exercise_compiler_flags)
