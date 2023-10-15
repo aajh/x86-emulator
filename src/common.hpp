@@ -85,9 +85,3 @@ namespace std {
     template<> struct is_error_code_enum<Errc> : true_type {};
 }
 error_code make_error_code(Errc);
-
-
-struct Program {
-    u64 size = 0;
-    u8* data = nullptr;
-};

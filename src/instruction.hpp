@@ -169,5 +169,7 @@ static inline const char* lookup_instruction_type(const Instruction& i) {
     return lookup_instruction_type(i.type);
 }
 
+struct Program;
+
 Instruction decode_instruction_at(const Program& program, u64 start);
 void output_instruction_assembly(FILE* out, const Instruction& instruction);

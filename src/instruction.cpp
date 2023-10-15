@@ -1,5 +1,7 @@
 #include "instruction.hpp"
 
+#include "program.hpp"
+
 namespace lookup {
     using enum Instruction::Type;
 
