@@ -36,6 +36,7 @@ template <class F> deferrer<F> operator*(defer_dummy, F f) { return {f}; }
 #define DEFER auto DEFER_IMPL(__LINE__) = defer_dummy{} *[&]()
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))
+#define LAST_ELEMENT(a) (a)[ARRAY_SIZE(a) - 1]
 
 #define OPEN_PAREN (
 #define CLOSE_PAREN )

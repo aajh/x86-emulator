@@ -2,20 +2,50 @@
 
 #include "program.hpp"
 
+constexpr const char* const register_names[] = {
+    "ax", "cx", "dx", "bx",
+    "sp", "bp", "si", "di",
+    "al", "cl", "dl", "bl",
+    "ah", "ch", "dh", "bh",
+    "es", "cs", "ss", "ds",
+};
+static_assert(LAST_ELEMENT(register_names) != nullptr);
+
+constexpr const char* const effective_address_calculation_names[] = {
+    "bx + si", "bx + di", "bp + si", "bp + di",
+    "si", "di", "bp", "bx",
+    "DIRECT_ACCESS",
+};
+static_assert(LAST_ELEMENT(effective_address_calculation_names) != nullptr);
+
+constexpr const char* const instruction_type_names[] = {
+    "UNKNOWN_INSTRUCTION",
+
+    "mov", "push",
+
+    "add", "sub", "cmp",
+
+    "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
+    "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",
+
+    "loopnz", "loopz", "loop", "jcxz",
+};
+static_assert(LAST_ELEMENT(instruction_type_names) != nullptr);
+
 namespace lookup {
     using enum Instruction::Type;
 
-    const Instruction::Type arithmetic_operations[8] = {
+    static const Instruction::Type arithmetic_operations[8] = {
         Add, None, None, None,
         None, Sub, None, Cmp,
     };
 
-    const Instruction::Type jmp_instructions[16] = {
+    static const Instruction::Type jmp_instructions[16] = {
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
     };
 
-    const Instruction::Type loop_instructions[4] = {
+    static const Instruction::Type loop_instructions[4] = {
         Loopnz, Loopz, Loop, Jcxz,
     };
 }
@@ -52,7 +82,7 @@ static EffectiveAddressCalculation lookup_effective_address_calculation(u8 rm) {
     return static_cast<EffectiveAddressCalculation>(rm);
 }
 
-static bool read_displacement(const Program& program, u32 start, u8 displacement_bytes, bool sign_extension, i32& result) {
+[[nodiscard]] static bool read_displacement(const Program& program, u32 start, u8 displacement_bytes, bool sign_extension, i32& result) {
     assert(displacement_bytes <= 2);
     if (!displacement_bytes) return false;
     if (start + displacement_bytes > program.size) return true;
@@ -69,7 +99,7 @@ static bool read_displacement(const Program& program, u32 start, u8 displacement
     return false;
 }
 
-static bool read_data(const Program& program, u32 start, bool wide, u16& result) {
+[[nodiscard]] static bool read_data(const Program& program, u32 start, bool wide, u16& result) {
     if (start + wide >= program.size) return true;
 
     u8 data_lo = program.data[start];
@@ -79,8 +109,8 @@ static bool read_data(const Program& program, u32 start, bool wide, u16& result)
     return false;
 }
 
-static bool decode_rm_with_register(const Program& program, u32 start, Instruction& i) {
-    if (start + 1 >= program.size) return true;
+static void decode_rm_with_register(const Program& program, u32 start, Instruction& i) {
+    if (start + 1 >= program.size) return;
 
     u8 a = program.data[start];
     u8 b = program.data[start + 1];
@@ -104,7 +134,7 @@ static bool decode_rm_with_register(const Program& program, u32 start, Instructi
     }
 
     i32 displacement = 0;
-    if (read_displacement(program, start + 2, displacement_bytes, true, displacement)) return true;
+    if (read_displacement(program, start + 2, displacement_bytes, true, displacement)) return;
 
     i.size = 2 + displacement_bytes;
     if (w) {
@@ -149,15 +179,11 @@ static bool decode_rm_with_register(const Program& program, u32 start, Instructi
             }
             break;
         }
-        default:
-            return true;
     }
-
-    return false;
 }
 
-static bool decode_immediate_to_rm(const Program& program, u32 start, Instruction& i) {
-    if (start + 1 >= program.size) return true;
+static void decode_immediate_to_rm(const Program& program, u32 start, Instruction& i) {
+    if (start + 1 >= program.size) return;
 
     u8 a = program.data[start];
     u8 b = program.data[start + 1];
@@ -178,10 +204,10 @@ static bool decode_immediate_to_rm(const Program& program, u32 start, Instructio
     }
 
     i32 displacement = 0;
-    if (read_displacement(program, start + 2, displacement_bytes, s, displacement)) return true;
+    if (read_displacement(program, start + 2, displacement_bytes, s, displacement)) return;
 
     u16 data;
-    if (read_data(program, start + 2 + displacement_bytes, wide_data, data)) return true;
+    if (read_data(program, start + 2 + displacement_bytes, wide_data, data)) return;
 
     i.size = 2 + displacement_bytes + (wide_data ? 2 : 1);
     if (w) {
@@ -200,8 +226,6 @@ static bool decode_immediate_to_rm(const Program& program, u32 start, Instructio
     }
 
     i.operands[1] = data;
-
-    return false;
 }
 
 
@@ -233,15 +257,11 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     if ((a & 0b11111100) == 0b10001000) {
         // MOV: Registry/memory to/from registry
         i.type = Mov;
-        if (decode_rm_with_register(program, start, i)) {
-            i.type = None;
-        }
+        decode_rm_with_register(program, start, i);
     } else if ((a & 0b11111110) == 0b11000110) {
         // MOV: Immediate to register/memory
         i.type = Mov;
-        if (decode_immediate_to_rm(program, start, i)) {
-            i.type = None;
-        }
+        decode_immediate_to_rm(program, start, i);
     } else if ((a & 0b11110000) == 0b10110000) {
         // MOV: Immediate to register
         bool w = a & 0b1000;
@@ -262,7 +282,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         // MOV: Memory to accumulator
         bool w = a & 1;
         i32 address = 0;
-        if (read_displacement(program, start + 1, 1 + w, true, address)) return i;
+        if (read_displacement(program, start + 1, w + 1, true, address)) return i;
 
         i.type = Mov;
         i.size = w ? 3 : 2;
@@ -276,7 +296,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         // MOV: Accumulator to memory
         bool w = a & 1;
         i32 address;
-        if (read_displacement(program, start + 1, 1 + w, true, address)) return i;
+        if (read_displacement(program, start + 1, w + 1, true, address)) return i;
 
         i.type = Mov;
         i.size = w ? 3 : 2;
@@ -370,6 +390,8 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         i.flags |= Instruction::Wide;
         i.operands[0] = lookup_segment_register(segment_reg);
     }
+
+    if (i.size == 0) i.type = Instruction::Type::None;
 
     return i;
 }
