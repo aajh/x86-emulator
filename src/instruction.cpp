@@ -9,14 +9,14 @@ constexpr const char* const register_names[] = {
     "ah", "ch", "dh", "bh",
     "es", "cs", "ss", "ds",
 };
-static_assert(LAST_ELEMENT(register_names) != nullptr);
+static_assert(last_element(register_names) != nullptr);
 
 constexpr const char* const effective_address_calculation_names[] = {
     "bx + si", "bx + di", "bp + si", "bp + di",
     "si", "di", "bp", "bx",
     "DIRECT_ACCESS",
 };
-static_assert(LAST_ELEMENT(effective_address_calculation_names) != nullptr);
+static_assert(last_element(effective_address_calculation_names) != nullptr);
 
 constexpr const char* const instruction_type_names[] = {
     "UNKNOWN_INSTRUCTION",
@@ -30,7 +30,7 @@ constexpr const char* const instruction_type_names[] = {
 
     "loopnz", "loopz", "loop", "jcxz",
 };
-static_assert(LAST_ELEMENT(instruction_type_names) != nullptr);
+static_assert(last_element(instruction_type_names) != nullptr);
 
 namespace lookup {
     using enum Instruction::Type;
@@ -52,32 +52,27 @@ namespace lookup {
 
 typedef Instruction::Type (*lookup_function)(u8);
 
-static Instruction::Type lookup_arithmetic_operation(u8 op) {
-    if (op >= ARRAY_SIZE(lookup::arithmetic_operations)) return Instruction::Type::None;
-    return lookup::arithmetic_operations[op];
+template<const auto& array>
+constexpr static Instruction::Type lookup_template(u8 i) {
+    if (i >= std::size(array)) return Instruction::Type::None;
+    return array[i];
 }
 
-static Instruction::Type lookup_jmp_instruction(u8 i) {
-    if (i >= ARRAY_SIZE(lookup::jmp_instructions)) return Instruction::Type::None;
-    return lookup::jmp_instructions[i];
-}
+constexpr static lookup_function lookup_arithmetic_operation = lookup_template<lookup::arithmetic_operations>;
+constexpr static lookup_function lookup_jmp_instruction = lookup_template<lookup::jmp_instructions>;
+constexpr static lookup_function lookup_loop_instruction = lookup_template<lookup::loop_instructions>;
 
-static Instruction::Type lookup_loop_instruction(u8 i) {
-    if (i >= ARRAY_SIZE(lookup::loop_instructions)) return Instruction::Type::None;
-    return lookup::loop_instructions[i];
-}
-
-static Register lookup_register(bool w, u8 reg) {
+constexpr static Register lookup_register(bool w, u8 reg) {
     assert(reg < 8);
     return static_cast<Register>(w ? reg : reg + 8);
 }
 
-static Register lookup_segment_register(u8 reg) {
+constexpr static Register lookup_segment_register(u8 reg) {
     assert(reg < 4);
     return static_cast<Register>(reg + 16);
 }
 
-static EffectiveAddressCalculation lookup_effective_address_calculation(u8 rm) {
+constexpr static EffectiveAddressCalculation lookup_effective_address_calculation(u8 rm) {
     assert(rm < 8);
     return static_cast<EffectiveAddressCalculation>(rm);
 }

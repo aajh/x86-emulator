@@ -13,7 +13,7 @@ enum class Register : u32 {
 extern const char* const register_names[static_cast<size_t>(Register::ds) + 1];
 static inline const char* lookup_register(Register reg) {
     auto i = static_cast<u32>(reg);
-    assert(i < ARRAY_SIZE(register_names));
+    assert(i < std::size(register_names));
     return register_names[i];
 }
 
@@ -25,7 +25,7 @@ enum class EffectiveAddressCalculation : u32 {
 extern const char* const effective_address_calculation_names[static_cast<size_t>(EffectiveAddressCalculation::DirectAccess) + 1];
 static inline const char* lookup_effective_address_calculation(EffectiveAddressCalculation eac) {
     auto i = static_cast<u32>(eac);
-    assert(i < ARRAY_SIZE(effective_address_calculation_names));
+    assert(i < std::size(effective_address_calculation_names));
     return effective_address_calculation_names[i];
 }
 

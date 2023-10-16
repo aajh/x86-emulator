@@ -27,6 +27,8 @@ using u64 = uint64_t;
 
 using std::error_code;
 
+template <typename T, size_t N>
+constexpr const T& last_element(const T (&array)[N]) { static_assert(N > 0); return array[N - 1]; }
 
 struct defer_dummy {};
 template <class F> struct deferrer { F f; ~deferrer() { f(); } };
@@ -34,9 +36,6 @@ template <class F> deferrer<F> operator*(defer_dummy, F f) { return {f}; }
 #define DEFER_IMPL_(LINE) zz_defer##LINE
 #define DEFER_IMPL(LINE) DEFER_IMPL_(LINE)
 #define DEFER auto DEFER_IMPL(__LINE__) = defer_dummy{} *[&]()
-
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))
-#define LAST_ELEMENT(a) (a)[ARRAY_SIZE(a) - 1]
 
 #define OPEN_PAREN (
 #define CLOSE_PAREN )
