@@ -37,8 +37,8 @@ expected<Program, error_code> read_program(const char* filename) {
     return read_program(input_file);
 }
 
-error_code disassemble_program(FILE* out, const Program& program) {
-    fprintf(out, "; disassembly:\n");
+error_code disassemble_program(FILE* out, const Program& program, const char* filename) {
+    if (filename != nullptr) fprintf(out, "; %s disassembly:\n", filename);
     fprintf(out, "bits 16\n\n");
 
     u32 i = 0;
@@ -61,6 +61,6 @@ error_code disassemble_file(FILE* out, const char* filename) {
     UNWRAP_BARE(auto program, read_program(filename));
     DEFER { delete[] program.data; };
 
-    return disassemble_program(out, program);
+    return disassemble_program(out, program, filename);
 }
 
