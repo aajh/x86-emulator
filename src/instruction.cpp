@@ -62,7 +62,10 @@ static constexpr EffectiveAddressCalculation lookup_effective_address_calculatio
     u8 displacement_hi = displacement_bytes == 2 ? program.data[start + 1] : 0;
 
     if (displacement_bytes == 2) {
-        result = displacement_lo | (displacement_hi << 8);
+        // FIXME: conditional sign extension here might not be correct
+        // result = (i16)(displacement_lo | (displacement_hi << 8)); // The other option
+        u16 tmp = displacement_lo | (displacement_hi << 8);
+        result = sign_extension ? (i16)tmp : tmp;
     } else {
         result = sign_extension ? (i8)displacement_lo : displacement_lo;
     }
@@ -231,17 +234,18 @@ static void decode_ip_inc(const Program& program, u32 start, Instruction& i, uin
     i.operands[0] = adjusted_ip_inc;
 }
 
-static void decode_push_rm(const Program& program, u32 start, Instruction& i) {
+static void decode_push_pop_rm(const Program& program, u32 start, Instruction& i, bool is_pop) {
     if (start + 1 >= program.size) return;
 
     u8 b = program.data[start + 1];
-    if ((b & 0b00111000) >> 3 != 0b110) return;
+    if (!is_pop && (b & 0b00111000) >> 3 != 0b110) return;
+    if (is_pop && (b & 0b00111000) != 0) return;
 
     bool s = true;
     COMMON_MOD_RM_DEFINITIONS;
 
     i.size = 2 + displacement_bytes;
-    i.type = Push;
+    i.type = is_pop ? Pop : Push;
     i.flags |= Instruction::Wide;
 
     switch (mod) {
@@ -262,22 +266,22 @@ static void decode_push_rm(const Program& program, u32 start, Instruction& i) {
     }
 }
 
-static void decode_push_register(const Program& program, u32 start, Instruction& i) {
+static void decode_push_pop_register(const Program& program, u32 start, Instruction& i, bool is_pop) {
     u8 a = program.data[start];
     u8 reg = a & 0b111;
 
     i.size = 1;
-    i.type = Push;
+    i.type = is_pop ? Pop : Push;
     i.flags |= Instruction::Wide;
     i.operands[0] = lookup_register(true, reg);
 }
 
-static void decode_push_segment_register(const Program& program, u32 start, Instruction& i) {
+static void decode_push_pop_segment_register(const Program& program, u32 start, Instruction& i, bool is_pop) {
     u8 a = program.data[start];
     u8 segment_reg = (a & 0b11000) >> 3;
 
     i.size = 1;
-    i.type = Push;
+    i.type = is_pop ? Pop : Push;
     i.flags |= Instruction::Wide;
     i.operands[0] = lookup_segment_register(segment_reg);
 }
@@ -311,11 +315,17 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if ((a & 0b11111100) == 0b11100000) {
         decode_ip_inc(program, start, i, 0b11, lookup<loop_instructions>);
     } else if (a == 0xff) {
-        decode_push_rm(program, start, i);
+        decode_push_pop_rm(program, start, i, false); // PUSH
     } else if ((a & 0b11111000) == 0b01010000) {
-        decode_push_register(program, start, i);
+        decode_push_pop_register(program, start, i, false); // PUSH
     } else if ((a & 0b11100111) == 0b110) {
-        decode_push_segment_register(program, start, i);
+        decode_push_pop_segment_register(program, start, i, false); // PUSH
+    } else if (a == 0b10001111) {
+        decode_push_pop_rm(program, start, i, true); // POP
+    } else if ((a & 0b11111000) == 0b01011000) {
+        decode_push_pop_register(program, start, i, true); // POP
+    } else if ((a & 0b11100111) == 0b111) {
+        decode_push_pop_segment_register(program, start, i, true); // POP
     }
 
     return i;
