@@ -113,6 +113,9 @@ struct Instruction {
         Cmp, Aas, Das,
         Mul, Imul, Aam,
         Div, Idiv, Aad,
+        Cbw, Cwd,
+
+        Not,
 
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
@@ -132,6 +135,9 @@ struct Instruction {
         "cmp", "aas", "das",
         "mul", "imul", "aam",
         "div", "idiv", "aad",
+        "cbw", "cwd",
+
+        "not",
 
         "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",

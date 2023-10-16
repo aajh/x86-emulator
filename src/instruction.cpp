@@ -21,6 +21,11 @@ static constexpr std::array arithmetic_operations = {
     None, Sub, None, Cmp,
 };
 
+static constexpr std::array rm_operations = {
+    None, None, Not, Neg,
+    Mul, Imul, Div, Idiv,
+};
+
 static constexpr std::array jmp_instructions = {
     Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
     Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
@@ -248,12 +253,12 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     else if (a == 0b10001111 && op == 0) type = Pop;
     else if ((a & ~1) == (u8)~1 && op == 0) type = Inc;
     else if ((a & ~1) == (u8)~1 && op == 1) type = Dec;
-    else if ((a & ~1) == 0b11110110 && op == 0b011) type = Neg;
-    else if ((a & ~1) == 0b11110110 && op == 0b100) type = Mul;
-    else if ((a & ~1) == 0b11110110 && op == 0b101) type = Imul;
-    else if ((a & ~1) == 0b11110110 && op == 0b110) type = Div;
-    else if ((a & ~1) == 0b11110110 && op == 0b111) type = Idiv;
-    else return;
+    else if ((a & ~1) == 0b11110110) type = lookup<rm_operations>(op);
+
+    if (type == None) {
+        fprintf(stderr, "decode_rm: unimplemented instruction 0x%X 0x%X\n", a, b);
+        return;
+    }
 
     bool w = a & 1 || (type == Push || type == Pop);
     bool s = true;
@@ -429,13 +434,18 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if (a == 0b00100111) {
         i.type = Daa;
     } else if ((a & ~1) == 0b11110110) {
-        decode_rm(program, start, i); // NEG or MUL or IMUL or DIV or IDIV
+        // NEG or MUL or IMUL or DIV or IDIV or NOT
+        decode_rm(program, start, i);
     } else if (a == 0b00111111) {
         i.type = Aas;
     } else if (a == 0b00101111) {
         i.type = Das;
     } else if ((a & ~1) == 0b11010100) {
         decode_aam_aad(program, start, i);
+    } else if (a == 0b10011000) {
+        i.type = Cbw;
+    } else if (a == 0b10011001) {
+        i.type = Cwd;
     } else {
         fprintf(stderr, "Unimplemented opcode\n");
     }
