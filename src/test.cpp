@@ -49,7 +49,7 @@ static error_code test_disassembler(const char* filename) {
 
     if (program.size != reassembled_program.size) {
         fflush(stdout);
-        fprintf(stderr, "Reassembled program has different size (%llu, original %llu)\n", reassembled_program.size, program.size);
+        fprintf(stderr, "Reassembled program has different size (%u, original %u)\n", reassembled_program.size, program.size);
         return Errc::ReassemblyFailed;
     }
 
@@ -64,8 +64,8 @@ static error_code test_disassembler(const char* filename) {
     return {};
 }
 
-const char test_prefix[] = "../computer_enhance/perfaware/";
-const char* tests[] = {
+static const char test_prefix[] = "../computer_enhance/perfaware/";
+static constexpr std::array tests = {
     "part1/listing_0040_challenge_movs",
     "part1/listing_0041_add_sub_cmp_jnz",
     "part1/listing_0042_completionist_decode",

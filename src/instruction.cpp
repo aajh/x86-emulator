@@ -2,77 +2,41 @@
 
 #include "program.hpp"
 
-constexpr const char* const register_names[] = {
-    "ax", "cx", "dx", "bx",
-    "sp", "bp", "si", "di",
-    "al", "cl", "dl", "bl",
-    "ah", "ch", "dh", "bh",
-    "es", "cs", "ss", "ds",
+using enum Instruction::Type;
+
+static constexpr std::array arithmetic_operations = {
+    Add, None, None, None,
+    None, Sub, None, Cmp,
 };
-static_assert(last_element(register_names) != nullptr);
 
-constexpr const char* const effective_address_calculation_names[] = {
-    "bx + si", "bx + di", "bp + si", "bp + di",
-    "si", "di", "bp", "bx",
-    "DIRECT_ACCESS",
+static constexpr std::array jmp_instructions = {
+    Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
+    Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
 };
-static_assert(last_element(effective_address_calculation_names) != nullptr);
 
-constexpr const char* const instruction_type_names[] = {
-    "UNKNOWN_INSTRUCTION",
-
-    "mov", "push",
-
-    "add", "sub", "cmp",
-
-    "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
-    "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",
-
-    "loopnz", "loopz", "loop", "jcxz",
+static constexpr std::array loop_instructions = {
+    Loopnz, Loopz, Loop, Jcxz,
 };
-static_assert(last_element(instruction_type_names) != nullptr);
-
-namespace lookup {
-    using enum Instruction::Type;
-
-    static const Instruction::Type arithmetic_operations[8] = {
-        Add, None, None, None,
-        None, Sub, None, Cmp,
-    };
-
-    static const Instruction::Type jmp_instructions[16] = {
-        Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
-        Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
-    };
-
-    static const Instruction::Type loop_instructions[4] = {
-        Loopnz, Loopz, Loop, Jcxz,
-    };
-}
 
 typedef Instruction::Type (*lookup_function)(u8);
 
 template<const auto& array>
-constexpr static Instruction::Type lookup_template(u8 i) {
-    if (i >= std::size(array)) return Instruction::Type::None;
+static constexpr Instruction::Type lookup(u8 i) {
+    if (i >= std::size(array)) return None;
     return array[i];
 }
 
-constexpr static lookup_function lookup_arithmetic_operation = lookup_template<lookup::arithmetic_operations>;
-constexpr static lookup_function lookup_jmp_instruction = lookup_template<lookup::jmp_instructions>;
-constexpr static lookup_function lookup_loop_instruction = lookup_template<lookup::loop_instructions>;
-
-constexpr static Register lookup_register(bool w, u8 reg) {
+static constexpr Register lookup_register(bool w, u8 reg) {
     assert(reg < 8);
     return static_cast<Register>(w ? reg : reg + 8);
 }
 
-constexpr static Register lookup_segment_register(u8 reg) {
+static constexpr Register lookup_segment_register(u8 reg) {
     assert(reg < 4);
     return static_cast<Register>(reg + 16);
 }
 
-constexpr static EffectiveAddressCalculation lookup_effective_address_calculation(u8 rm) {
+static constexpr EffectiveAddressCalculation lookup_effective_address_calculation(u8 rm) {
     assert(rm < 8);
     return static_cast<EffectiveAddressCalculation>(rm);
 }
@@ -135,8 +99,8 @@ static void decode_rm_with_register(const Program& program, u32 start, Instructi
     if (w) {
         i.flags |= Instruction::Flag::Wide;
     }
-    if (i.type != Instruction::Type::Mov) {
-        i.type = lookup_arithmetic_operation(op);
+    if (i.type != Mov) {
+        i.type = lookup<arithmetic_operations>(op);
     }
 
     switch (mod) {
@@ -190,7 +154,7 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
     u8 rm = b & 0b111;
 
     bool is_direct_address = mod == 0 && rm == 0b110;
-    bool wide_data = i.type == Instruction::Type::Mov ? w : !s && w;
+    bool wide_data = i.type == Mov ? w : !s && w;
     auto eac = lookup_effective_address_calculation(rm);
 
     u8 displacement_bytes = mod == 3 ? 0 : mod;
@@ -208,8 +172,8 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
     if (w) {
         i.flags |= Instruction::Wide;
     }
-    if (i.type != Instruction::Type::Mov) {
-        i.type = lookup_arithmetic_operation(op);
+    if (i.type != Mov) {
+        i.type = lookup<arithmetic_operations>(op);
     }
 
     if (mod == 3) {
@@ -244,7 +208,6 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
 
-    using enum Instruction::Type;
     Instruction i = {};
     i.address = start;
 
@@ -315,7 +278,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         u16 data;
         if (read_data(program, start + 1, w, data)) return i;
 
-        i.type = lookup_arithmetic_operation(op);
+        i.type = lookup<arithmetic_operations>(op);
         i.size = w ? 3 : 2;
         if (w) {
             i.flags |= Instruction::Flag::Wide;
@@ -324,9 +287,9 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         i.operands[0] = w ? Register::ax : Register::al;
         i.operands[1] = data;
     } else if ((a & 0b11110000) == 0x70) {
-        decode_ip_inc(program, start, i, 0b1111, lookup_jmp_instruction);
+        decode_ip_inc(program, start, i, 0b1111, lookup<jmp_instructions>);
     } else if ((a & 0b11111100) == 0b11100000) {
-        decode_ip_inc(program, start, i, 0b11, lookup_loop_instruction);
+        decode_ip_inc(program, start, i, 0b11, lookup<loop_instructions>);
     } else if (a == 0xff) {
         // PUSH: Register/memory
         if (start + 1 >= program.size) return i;
@@ -351,7 +314,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         if (read_displacement(program, start + 2, displacement_bytes, true, displacement)) return i;
 
         i.size = 2 + displacement_bytes;
-        i.type = Instruction::Type::Push;
+        i.type = Push;
         i.flags |= Instruction::Wide;
 
         switch (mod) {
@@ -373,7 +336,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         u8 reg = a & 0b111;
 
         i.size = 1;
-        i.type = Instruction::Type::Push;
+        i.type = Push;
         i.flags |= Instruction::Wide;
         i.operands[0] = lookup_register(true, reg);
     } else if ((a & 0b11100111) == 0b110) {
@@ -381,12 +344,12 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         u8 segment_reg = (a & 0b11000) >> 3;
 
         i.size = 1;
-        i.type = Instruction::Type::Push;
+        i.type = Push;
         i.flags |= Instruction::Wide;
         i.operands[0] = lookup_segment_register(segment_reg);
     }
 
-    if (i.size == 0) i.type = Instruction::Type::None;
+    if (i.size == 0) i.type = None;
 
     return i;
 }
@@ -430,7 +393,6 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
 }
 
 void output_instruction_assembly(FILE* out, const Instruction& i) {
-    using enum Instruction::Type;
     if (i.type == None) return;
 
     fprintf(out, "%s", lookup_instruction_type(i));

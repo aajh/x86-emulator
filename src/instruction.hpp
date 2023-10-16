@@ -10,7 +10,14 @@ enum class Register : u32 {
     ah, ch, dh, bh,
     es, cs, ss, ds,
 };
-extern const char* const register_names[static_cast<size_t>(Register::ds) + 1];
+inline constexpr std::array register_names = {
+    "ax", "cx", "dx", "bx",
+    "sp", "bp", "si", "di",
+    "al", "cl", "dl", "bl",
+    "ah", "ch", "dh", "bh",
+    "es", "cs", "ss", "ds",
+};
+static_assert(register_names.size() == static_cast<size_t>(Register::ds) + 1);
 static inline const char* lookup_register(Register reg) {
     auto i = static_cast<u32>(reg);
     assert(i < std::size(register_names));
@@ -22,7 +29,13 @@ enum class EffectiveAddressCalculation : u32 {
     si, di, bp, bx,
     DirectAccess,
 };
-extern const char* const effective_address_calculation_names[static_cast<size_t>(EffectiveAddressCalculation::DirectAccess) + 1];
+inline constexpr std::array effective_address_calculation_names = {
+    "bx + si", "bx + di", "bp + si", "bp + di",
+    "si", "di", "bp", "bx",
+    "DIRECT_ACCESS",
+};
+static_assert(effective_address_calculation_names.size() == static_cast<size_t>(EffectiveAddressCalculation::DirectAccess) + 1);
+
 static inline const char* lookup_effective_address_calculation(EffectiveAddressCalculation eac) {
     auto i = static_cast<u32>(eac);
     assert(i < std::size(effective_address_calculation_names));
@@ -101,6 +114,19 @@ struct Instruction {
         Loopnz, Loopz, Loop, Jcxz,
     };
     static constexpr auto instruction_count = static_cast<size_t>(Type::Jcxz) + 1;
+    static constexpr std::array instruction_type_names = {
+        "UNKNOWN_INSTRUCTION",
+
+        "mov", "push",
+
+        "add", "sub", "cmp",
+
+        "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
+        "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",
+
+        "loopnz", "loopz", "loop", "jcxz",
+    };
+    static_assert(instruction_type_names.size() == instruction_count);
 
     enum Flag : u32 {
         Wide = 0x1,
@@ -113,14 +139,13 @@ struct Instruction {
     Type type = Type::None;
     u32 flags = 0;
 
-    Operand operands[2] = {{}, {}};
+    std::array<Operand, 2> operands = {};
 };
 
-extern const char* const instruction_type_names[Instruction::instruction_count];
 static inline const char* lookup_instruction_type(Instruction::Type type) {
     auto i = static_cast<u32>(type);
-    assert(i < Instruction::instruction_count);
-    return instruction_type_names[i];
+    assert(i < std::size(Instruction::instruction_type_names));
+    return Instruction::instruction_type_names[i];
 }
 static inline const char* lookup_instruction_type(const Instruction& i) {
     return lookup_instruction_type(i.type);

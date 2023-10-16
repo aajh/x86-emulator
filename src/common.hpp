@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cassert>
 #include <cerrno>
 #include <cstdint>
@@ -26,9 +27,6 @@ using u32 = uint32_t;
 using u64 = uint64_t;
 
 using std::error_code;
-
-template <typename T, size_t N>
-constexpr const T& last_element(const T (&array)[N]) { static_assert(N > 0); return array[N - 1]; }
 
 struct defer_dummy {};
 template <class F> struct deferrer { F f; ~deferrer() { f(); } };
