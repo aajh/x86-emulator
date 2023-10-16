@@ -16,12 +16,12 @@
 
 using enum Instruction::Type;
 
-static constexpr std::array arithmetic_operations = {
+static constexpr std::array operations_1 = {
     Add, None, Adc, Sbb,
-    None, Sub, None, Cmp,
+    And, Sub, None, Cmp,
 };
 
-static constexpr std::array rm_operations = {
+static constexpr std::array operations_2 = {
     None, None, Not, Neg,
     Mul, Imul, Div, Idiv,
 };
@@ -110,7 +110,7 @@ static void decode_rm_register(const Program& program, u32 start, Instruction& i
     COMMON_MOD_RM_DEFINITIONS;
 
     i.size = 2 + displacement_bytes;
-    i.type = type != None ? type : lookup<arithmetic_operations>(op);
+    i.type = type != None ? type : lookup<operations_1>(op);
     if (w) i.flags |= Instruction::Flag::Wide;
 
     switch (mod) {
@@ -156,18 +156,20 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
     u8 a = program.data[start];
     u8 b = program.data[start + 1];
 
-    bool s = a & 0b10;
-    bool w = a & 1;
     u8 op = (b & 0b00111000) >> 3;
+    auto type = is_mov ? Mov : lookup<operations_1>(op);
 
-    bool wide_data = is_mov ? w : !s && w;
+    bool s = a & 0b10 || type == And;
+    bool w = a & 1;
+
+    bool wide_data = (is_mov || type == And) ? w : !s && w;
     COMMON_MOD_RM_DEFINITIONS;
 
     u16 data;
     if (read_data(program, start + 2 + displacement_bytes, wide_data, data)) return;
 
     i.size = 2 + displacement_bytes + (wide_data ? 2 : 1);
-    i.type = is_mov ? Mov : lookup<arithmetic_operations>(op);
+    i.type = type;
     if (w) i.flags |= Instruction::Wide;
 
     if (mod == 3) {
@@ -213,7 +215,7 @@ static void decode_mov_memory_accumulator(const Program& program, u32 start, Ins
     if (to_accumulator) swap(i.operands[0], i.operands[1]);
 }
 
-static void decode_arithmetic_immediate_to_accumulator(const Program& program, u32 start, Instruction& i) {
+static void decode_operations_1_immediate_to_accumulator(const Program& program, u32 start, Instruction& i) {
     u8 a = program.data[start];
     u8 op = (a & 0b00111000) >> 3;
     bool w = a & 1;
@@ -222,7 +224,7 @@ static void decode_arithmetic_immediate_to_accumulator(const Program& program, u
     if (read_data(program, start + 1, w, data)) return;
 
     i.size = w ? 3 : 2;
-    i.type = lookup<arithmetic_operations>(op);
+    i.type = lookup<operations_1>(op);
     if (w) i.flags |= Instruction::Flag::Wide;
 
     i.operands[0] = w ? Register::ax : Register::al;
@@ -259,7 +261,7 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     else if (a == 0b10001111 && op == 0) type = Pop;
     else if ((a & ~1) == (u8)~1 && op == 0) type = Inc;
     else if ((a & ~1) == (u8)~1 && op == 1) type = Dec;
-    else if ((a & ~1) == 0b11110110) type = lookup<rm_operations>(op);
+    else if ((a & ~1) == 0b11110110) type = lookup<operations_2>(op);
     else if (is_shift) type = lookup<shift_operations>(op);
 
     if (type == None) {
@@ -395,11 +397,11 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if ((a & 0b11111110) == 0b10100010) {
         decode_mov_memory_accumulator(program, start, i, false);
     } else if ((a & 0b11000100) == 0) {
-        decode_rm_register(program, start, i, None); // Arithmetic
+        decode_rm_register(program, start, i, None); // Lookup from operations_1
     } else if ((a & 0b11111100) == 0b10000000) {
-        decode_immediate_to_rm(program, start, i, false); // Arithmetic
+        decode_immediate_to_rm(program, start, i, false); // Lookup from operations_1
     } else if ((a & 0b11000110) == 0b00000100) {
-        decode_arithmetic_immediate_to_accumulator(program, start, i);
+        decode_operations_1_immediate_to_accumulator(program, start, i);
     } else if ((a & 0b11110000) == 0b01110000) {
         decode_ip_inc(program, start, i, 0b1111, lookup<jmp_instructions>);
     } else if ((a & 0b11111100) == 0b11100000) {
@@ -447,8 +449,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if (a == 0b00100111) {
         i.type = Daa;
     } else if ((a & ~1) == 0b11110110) {
-        // NEG or MUL or IMUL or DIV or IDIV or NOT
-        decode_rm(program, start, i);
+        decode_rm(program, start, i); // Lookup from operations_2
     } else if (a == 0b00111111) {
         i.type = Aas;
     } else if (a == 0b00101111) {
