@@ -108,7 +108,9 @@ struct Instruction {
         Xlat, Lea, Lds, Les,
         Lahf, Sahf, Pushf, Popf,
 
-        Add, Sub, Cmp,
+        Add, Adc, Inc, Aaa, Daa,
+        Sub,
+        Cmp,
 
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
@@ -123,7 +125,9 @@ struct Instruction {
         "xlat", "lea", "lds", "les",
         "lahf", "sahf", "pushf", "popf",
 
-        "add", "sub", "cmp",
+        "add", "adc", "inc", "aaa", "daa",
+        "sub",
+        "cmp",
 
         "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",

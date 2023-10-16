@@ -17,7 +17,7 @@
 using enum Instruction::Type;
 
 static constexpr std::array arithmetic_operations = {
-    Add, None, None, None,
+    Add, None, Adc, None,
     None, Sub, None, Cmp,
 };
 
@@ -235,19 +235,28 @@ static void decode_ip_inc(const Program& program, u32 start, Instruction& i, uin
     i.operands[0] = adjusted_ip_inc;
 }
 
-static void decode_push_pop_rm(const Program& program, u32 start, Instruction& i, bool is_pop) {
+static void decode_push_pop_inc_rm(const Program& program, u32 start, Instruction& i) {
     if (start + 1 >= program.size) return;
 
+    u8 a = program.data[start];
     u8 b = program.data[start + 1];
-    if (!is_pop && (b & 0b00111000) >> 3 != 0b110) return;
-    if (is_pop && (b & 0b00111000) != 0) return;
 
+    u8 op = (b & 0b00111000) >> 3;
+
+    auto type = None;
+    if (a == 0xff &&  op == 0b110) type = Push;
+    else if (a == 0b10001111 && op == 0) type = Pop;
+    else if ((a & ~1) == (u8)~1 && op == 0) type = Inc;
+    else return;
+
+
+    bool w = type == Inc ? a & 1 : true;
     bool s = true;
     COMMON_MOD_RM_DEFINITIONS;
 
     i.size = 2 + displacement_bytes;
-    i.type = is_pop ? Pop : Push;
-    i.flags |= Instruction::Wide;
+    i.type = type;
+    if (w) i.flags |= Instruction::Wide;
 
     switch (mod) {
         case 0:
@@ -260,7 +269,7 @@ static void decode_push_pop_rm(const Program& program, u32 start, Instruction& i
             }
             break;
         case 3:
-            i.operands[0] = lookup_register(true, rm);
+            i.operands[0] = lookup_register(w, rm);
             break;
         default:
             assert(false);
@@ -322,6 +331,16 @@ static void decode_in_out(const Program& program, u32 start, Instruction& i, Ins
     if (type == Out) swap(i.operands[0], i.operands[1]);
 }
 
+static void decode_inc_register(const Program& program, u32 start, Instruction& i) {
+    u8 a = program.data[start];
+    u8 reg = a & 0b111;
+
+    i.size = 1;
+    i.type = Inc;
+    i.flags |= Instruction::Wide;
+    i.operands[0] = lookup_register(true, reg);
+}
+
 Instruction decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
@@ -351,14 +370,14 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         decode_ip_inc(program, start, i, 0b1111, lookup<jmp_instructions>);
     } else if ((a & 0b11111100) == 0b11100000) {
         decode_ip_inc(program, start, i, 0b11, lookup<loop_instructions>);
-    } else if (a == 0xff) {
-        decode_push_pop_rm(program, start, i, false); // PUSH
+    } else if ((a & ~1) == (u8)~1) {
+        decode_push_pop_inc_rm(program, start, i); // PUSH or INC
     } else if ((a & 0b11111000) == 0b01010000) {
         decode_push_pop_register(program, start, i, false); // PUSH
     } else if ((a & 0b11100111) == 0b110) {
         decode_push_pop_segment_register(program, start, i, false); // PUSH
     } else if (a == 0b10001111) {
-        decode_push_pop_rm(program, start, i, true); // POP
+        decode_push_pop_inc_rm(program, start, i); // POP
     } else if ((a & 0b11111000) == 0b01011000) {
         decode_push_pop_register(program, start, i, true); // POP
     } else if ((a & 0b11100111) == 0b111) {
@@ -387,6 +406,12 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         i.type = Pushf;
     } else if (a == 0b10011101) {
         i.type = Popf;
+    } else if ((a & 0b11111000) == 0b01000000) {
+        decode_inc_register(program, start, i);
+    } else if (a == 0b00110111) {
+        i.type = Aaa;
+    } else if (a == 0b00100111) {
+        i.type = Daa;
     }
 
     return i;
