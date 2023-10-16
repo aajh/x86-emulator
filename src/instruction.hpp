@@ -120,6 +120,8 @@ struct Instruction {
         Ror, Rcl, Rcr,
         And, Test, Or, Xor,
 
+        Movs, Cmps, Scas, Lods, Stos,
+
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
 
@@ -145,6 +147,8 @@ struct Instruction {
         "ror", "rcl", "rcr",
         "and", "test", "or", "xor",
 
+        "movs", "cmps", "scas", "lods", "stos",
+
         "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",
 
@@ -155,6 +159,8 @@ struct Instruction {
     enum Flag : u32 {
         Wide = 0x1,
         IpInc = 0x2,
+        Rep = 0x4,
+        RepNz = 0x8,
     };
 
     u32 address = 0;
@@ -178,6 +184,11 @@ static inline bool is_shift(const Instruction& i) {
     using enum Instruction::Type;
     auto t = static_cast<size_t>(i.type);
     return static_cast<size_t>(Shl) <= t && t <= static_cast<size_t>(Rcr);
+}
+static inline bool is_string_manipulation(const Instruction& i) {
+    using enum Instruction::Type;
+    auto t = static_cast<size_t>(i.type);
+    return static_cast<size_t>(Movs) <= t && t <= static_cast<size_t>(Stos);
 }
 
 struct Program;

@@ -31,6 +31,11 @@ static constexpr std::array shift_operations = {
     Shl, Shr, None, Sar,
 };
 
+static constexpr std::array string_instructions = {
+    None, None, Movs, Cmps,
+    None, Stos, Lods, Scas,
+};
+
 static constexpr std::array jmp_instructions = {
     Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
     Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
@@ -384,6 +389,16 @@ static void decode_aam_aad(const Program& program, u32 start, Instruction& i) {
     i.type = a & 1 ? Aad : Aam;
 }
 
+static void decode_string_instruction(const Program& program, u32 start, Instruction& i) {
+    u8 a = program.data[start];
+    u8 op = (a & 0b1110) >> 1;
+    bool w = a & 1;
+
+    i.size = 1 + (i.flags & Instruction::Rep ? 1 : 0);
+    i.type = lookup<string_instructions>(op);
+    if (w) i.flags |= Instruction::Wide;
+}
+
 Instruction decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
@@ -473,6 +488,15 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         decode_rm_register(program, start, i, Test);
     } else if ((a & ~1) == 0b10101000) {
         decode_immediate_to_accumulator(program, start, i, Test);
+    } else if ((a & ~1) == 0b11110010) {
+        i.flags |= Instruction::Rep;
+        if (~a & 1) i.flags |= Instruction::RepNz;
+
+        if (start + 1 < program.size && (program.data[start + 1] & ~0b1111) == 0b10100000) {
+            decode_string_instruction(program, start + 1, i);
+        }
+    } else if ((a & ~0b1111) == 0b10100000) {
+        decode_string_instruction(program, start, i);
     } else {
         fprintf(stderr, "Unimplemented opcode 0x%X\n", a);
     }
@@ -519,7 +543,14 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
 void output_instruction_assembly(FILE* out, const Instruction& i) {
     if (i.type == None) return;
 
+    if (i.flags & Instruction::Rep) {
+        if (i.flags & Instruction::RepNz) fprintf(out, "repnz ");
+        else fprintf(out, "rep ");
+    }
+
     fprintf(out, "%s", lookup_instruction_type(i));
+
+    if (is_string_manipulation(i)) fprintf(out, "%c", i.flags & Instruction::Wide ? 'w' : 'b');
 
     if (i.operands[0].type != Operand::Type::None) {
         fprintf(out, " ");
