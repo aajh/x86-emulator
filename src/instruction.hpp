@@ -105,6 +105,7 @@ struct Instruction {
         None,
 
         Mov, Push, Pop, Xchg, In, Out,
+        Xlat, Lea, Lds, Les,
 
         Add, Sub, Cmp,
 
@@ -118,6 +119,7 @@ struct Instruction {
         "UNKNOWN_INSTRUCTION",
 
         "mov", "push", "pop", "xchg", "in", "out",
+        "xlat", "lea", "lds", "les",
 
         "add", "sub", "cmp",
 

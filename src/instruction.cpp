@@ -89,9 +89,10 @@ static void decode_rm_register(const Program& program, u32 start, Instruction& i
     u8 a = program.data[start];
     u8 b = program.data[start + 1];
 
+    bool no_d_or_w = (type == Lea || type == Lds || type == Les);
     u8 op = (a & 0b00111000) >> 3;
-    bool d = a & 0b10;
-    bool w = a & 1;
+    bool d = a & 0b10 || no_d_or_w;
+    bool w = a & 1 || no_d_or_w;
     u8 reg = (b & 0b00111000) >> 3;
     bool s = true;
 
@@ -369,6 +370,15 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         decode_in_out(program, start, i, In);
     } else if ((a & 0b11110110) == 0b11100110) {
         decode_in_out(program, start, i, Out);
+    } else if (a == 0b11010111) {
+        i.size = 1;
+        i.type = Xlat;
+    } else if (a == 0b10001101) {
+        decode_rm_register(program, start, i, Lea);
+    } else if (a == 0b11000101) {
+        decode_rm_register(program, start, i, Lds);
+    } else if (a == 0b11000100) {
+        decode_rm_register(program, start, i, Les);
     }
 
     return i;
