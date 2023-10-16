@@ -26,6 +26,11 @@ static constexpr std::array rm_operations = {
     Mul, Imul, Div, Idiv,
 };
 
+static constexpr std::array shift_operations = {
+    Rol, Ror, Rcl, Rcr,
+    Shl, Shr, None, Sar,
+};
+
 static constexpr std::array jmp_instructions = {
     Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
     Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
@@ -246,6 +251,7 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     u8 a = program.data[start];
     u8 b = program.data[start + 1];
 
+    bool is_shift = (a & 0b11111100) == 0b11010000;
     u8 op = (b & 0b00111000) >> 3;
 
     auto type = None;
@@ -254,12 +260,14 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     else if ((a & ~1) == (u8)~1 && op == 0) type = Inc;
     else if ((a & ~1) == (u8)~1 && op == 1) type = Dec;
     else if ((a & ~1) == 0b11110110) type = lookup<rm_operations>(op);
+    else if (is_shift) type = lookup<shift_operations>(op);
 
     if (type == None) {
         fprintf(stderr, "decode_rm: unimplemented instruction 0x%X 0x%X\n", a, b);
         return;
     }
 
+    bool v = is_shift && a & 0b10;
     bool w = a & 1 || (type == Push || type == Pop);
     bool s = true;
     COMMON_MOD_RM_DEFINITIONS;
@@ -283,6 +291,11 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
             break;
         default:
             assert(false);
+    }
+
+    if (is_shift) {
+        if (v) i.operands[1] = Register::cl;
+        else i.operands[1] = 1;
     }
 }
 
@@ -446,6 +459,9 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         i.type = Cbw;
     } else if (a == 0b10011001) {
         i.type = Cwd;
+    } else if ((a & 0b11111100) == 0b11010000) {
+        // Shift operator
+        decode_rm(program, start, i);
     } else {
         fprintf(stderr, "Unimplemented opcode\n");
     }
@@ -466,7 +482,7 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
             fprintf(out, "%s", lookup_register(o.reg));
             break;
         case Memory:
-            if (operand_index == 0 && i.operands[1].type == None) {
+            if (operand_index == 0 && (oo.type == None || oo.type == Immediate || is_shift(i))) {
                 fprintf(out, "%s ", i.flags & Instruction::Wide ? "word" : "byte");
             }
             if (o.memory.eac == EffectiveAddressCalculation::DirectAccess) {
@@ -483,9 +499,6 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
             if (i.flags & Instruction::IpInc) {
                 fprintf(out, "$%c%d", o.immediate < 0 ? '-' : '+', abs(o.immediate));
                 break;
-            }
-            if (operand_index == 1 && oo.type != Register) {
-                fprintf(out, "%s ", i.flags & Instruction::Wide ? "word" : "byte");
             }
             fprintf(out, "%d", o.immediate);
             break;

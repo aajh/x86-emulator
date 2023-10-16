@@ -116,6 +116,8 @@ struct Instruction {
         Cbw, Cwd,
 
         Not,
+        Shl, Shr, Sar, Rol,
+        Ror, Rcl, Rcr,
 
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
@@ -138,6 +140,8 @@ struct Instruction {
         "cbw", "cwd",
 
         "not",
+        "shl", "shr", "sar", "rol",
+        "ror", "rcl", "rcr",
 
         "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",
@@ -167,6 +171,11 @@ static inline const char* lookup_instruction_type(Instruction::Type type) {
 }
 static inline const char* lookup_instruction_type(const Instruction& i) {
     return lookup_instruction_type(i.type);
+}
+static inline bool is_shift(const Instruction& i) {
+    using enum Instruction::Type;
+    auto t = static_cast<size_t>(i.type);
+    return static_cast<size_t>(Shl) <= t && t <= static_cast<size_t>(Rcr);
 }
 
 struct Program;
