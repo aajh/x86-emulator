@@ -2,6 +2,18 @@
 
 #include "program.hpp"
 
+#define COMMON_MOD_RM_DEFINITIONS\
+    u8 mod = (b & 0b11000000) >> 6;\
+    u8 rm = b & 0b111;\
+    bool is_direct_address = mod == 0 && rm == 0b110;\
+    auto eac = lookup_effective_address_calculation(rm);\
+    u8 displacement_bytes = mod == 3 ? 0 : mod;\
+    if (is_direct_address) {\
+        displacement_bytes = 2;\
+    }\
+    i32 displacement = 0;\
+    if (read_displacement(program, start + 2, displacement_bytes, s, displacement)) return;
+
 using enum Instruction::Type;
 
 static constexpr std::array arithmetic_operations = {
@@ -77,23 +89,11 @@ static void decode_rm_with_register(const Program& program, u32 start, Instructi
     u8 op = (a & 0b00111000) >> 3;
     bool d = a & 0b10;
     bool w = a & 1;
-    u8 mod = (b & 0b11000000) >> 6;
     u8 reg = (b & 0b00111000) >> 3;
-    u8 rm = b & 0b111;
+    bool s = true;
 
-    bool is_direct_address = mod == 0 && rm == 0b110;
     auto looked_reg = lookup_register(w, reg);
-    auto eac = lookup_effective_address_calculation(rm);
-
-    u8 displacement_bytes = 0;
-    if (mod == 1) {
-        displacement_bytes = 1;
-    } else if (mod == 2 || is_direct_address) {
-        displacement_bytes = 2;
-    }
-
-    i32 displacement = 0;
-    if (read_displacement(program, start + 2, displacement_bytes, true, displacement)) return;
+    COMMON_MOD_RM_DEFINITIONS;
 
     i.size = 2 + displacement_bytes;
     i.type = is_mov ? Mov : lookup<arithmetic_operations>(op);
@@ -144,21 +144,10 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
 
     bool s = a & 0b10;
     bool w = a & 1;
-    u8 mod = (b & 0b11000000) >> 6;
     u8 op = (b & 0b00111000) >> 3;
-    u8 rm = b & 0b111;
 
-    bool is_direct_address = mod == 0 && rm == 0b110;
     bool wide_data = is_mov ? w : !s && w;
-    auto eac = lookup_effective_address_calculation(rm);
-
-    u8 displacement_bytes = mod == 3 ? 0 : mod;
-    if (is_direct_address) {
-        displacement_bytes = 2;
-    }
-
-    i32 displacement = 0;
-    if (read_displacement(program, start + 2, displacement_bytes, s, displacement)) return;
+    COMMON_MOD_RM_DEFINITIONS;
 
     u16 data;
     if (read_data(program, start + 2 + displacement_bytes, wide_data, data)) return;
@@ -248,21 +237,8 @@ static void decode_push_rm(const Program& program, u32 start, Instruction& i) {
     u8 b = program.data[start + 1];
     if ((b & 0b00111000) >> 3 != 0b110) return;
 
-    u8 mod = (b & 0b11000000) >> 6;
-    u8 rm = b & 0b111;
-
-    bool is_direct_address = mod == 0 && rm == 0b110;
-    auto eac = lookup_effective_address_calculation(rm);
-
-    u8 displacement_bytes = 0;
-    if (mod == 1) {
-        displacement_bytes = 1;
-    } else if (mod == 2 || is_direct_address) {
-        displacement_bytes = 2;
-    }
-
-    i32 displacement = 0;
-    if (read_displacement(program, start + 2, displacement_bytes, true, displacement)) return;
+    bool s = true;
+    COMMON_MOD_RM_DEFINITIONS;
 
     i.size = 2 + displacement_bytes;
     i.type = Push;
