@@ -328,6 +328,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
 
     Instruction i = {};
     i.address = start;
+    i.size = 1;
 
     u8 a = program.data[start];
     if ((a & 0b11111100) == 0b10001000) {
@@ -371,7 +372,6 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if ((a & 0b11110110) == 0b11100110) {
         decode_in_out(program, start, i, Out);
     } else if (a == 0b11010111) {
-        i.size = 1;
         i.type = Xlat;
     } else if (a == 0b10001101) {
         decode_rm_register(program, start, i, Lea);
@@ -379,6 +379,14 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         decode_rm_register(program, start, i, Lds);
     } else if (a == 0b11000100) {
         decode_rm_register(program, start, i, Les);
+    } else if (a == 0b10011111) {
+        i.type = Lahf;
+    } else if (a == 0b10011110) {
+        i.type = Sahf;
+    } else if (a == 0b10011100) {
+        i.type = Pushf;
+    } else if (a == 0b10011101) {
+        i.type = Popf;
     }
 
     return i;

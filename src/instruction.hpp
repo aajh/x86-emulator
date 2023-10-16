@@ -106,6 +106,7 @@ struct Instruction {
 
         Mov, Push, Pop, Xchg, In, Out,
         Xlat, Lea, Lds, Les,
+        Lahf, Sahf, Pushf, Popf,
 
         Add, Sub, Cmp,
 
@@ -120,6 +121,7 @@ struct Instruction {
 
         "mov", "push", "pop", "xchg", "in", "out",
         "xlat", "lea", "lds", "les",
+        "lahf", "sahf", "pushf", "popf",
 
         "add", "sub", "cmp",
 
