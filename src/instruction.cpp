@@ -297,7 +297,9 @@ static void decode_xchg_register_accumulator(const Program& program, u32 start, 
     i.operands[1] = lookup_register(true, reg);
 }
 
-static void decode_in(const Program& program, u32 start, Instruction& i) {
+static void decode_in_out(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
+    assert(type == In || type == Out);
+
     u8 a = program.data[start];
     bool fixed_port = !(a & 0b1000);
     bool w = a & 1;
@@ -306,7 +308,7 @@ static void decode_in(const Program& program, u32 start, Instruction& i) {
     if (fixed_port && read_data(program, start + 1, false, data)) return;
 
     i.size = 1 + fixed_port;
-    i.type = In;
+    i.type = type;
     if (w) i.flags |= Instruction::Wide;
 
     i.operands[0] = w ? Register::ax : Register::al;
@@ -315,6 +317,8 @@ static void decode_in(const Program& program, u32 start, Instruction& i) {
     } else {
         i.operands[1] = Register::dx;
     }
+
+    if (type == Out) swap(i.operands[0], i.operands[1]);
 }
 
 Instruction decode_instruction_at(const Program& program, u32 start) {
@@ -362,7 +366,9 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if ((a & 0b11111000) == 0b10010000) {
         decode_xchg_register_accumulator(program, start, i);
     } else if ((a & 0b11110110) == 0b11100100) {
-        decode_in(program, start, i);
+        decode_in_out(program, start, i, In);
+    } else if ((a & 0b11110110) == 0b11100110) {
+        decode_in_out(program, start, i, Out);
     }
 
     return i;
