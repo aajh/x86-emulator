@@ -41,12 +41,12 @@ error_code disassemble_program(FILE* out, const Program& program) {
     fprintf(out, "; disassembly:\n");
     fprintf(out, "bits 16\n\n");
 
-    u64 i = 0;
+    u32 i = 0;
     while (i < program.size) {
         auto instruction = decode_instruction_at(program, i);
         if (instruction.type == Instruction::Type::None) {
             fflush(stdout);
-            fprintf(stderr, "Unknown instruction at location %llu (first byte 0x%X)\n", i, program.data[i]);
+            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%X)\n", i, program.data[i]);
             return Errc::UnknownInstruction;
         }
 

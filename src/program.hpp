@@ -4,7 +4,7 @@
 #include <cstdio>
 
 struct Program {
-    u64 size = 0;
+    u32 size = 0;
     u8* data = nullptr;
 };
 

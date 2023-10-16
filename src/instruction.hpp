@@ -8,18 +8,16 @@ enum class Register : u32 {
     sp, bp, si, di,
     al, cl, dl, bl,
     ah, ch, dh, bh,
+    es, cs, ss, ds,
 };
-const char* const register_names[16] = {
+const char* const register_names[] = {
     "ax", "cx", "dx", "bx",
     "sp", "bp", "si", "di",
     "al", "cl", "dl", "bl",
     "ah", "ch", "dh", "bh",
+    "es", "cs", "ss", "ds",
 };
-static_assert(static_cast<size_t>(Register::bh) + 1 == ARRAY_SIZE(register_names));
-static inline Register lookup_register(bool w, u8 reg) {
-    assert(reg < 8);
-    return static_cast<Register>(w ? reg : reg + 8);
-}
+static_assert(static_cast<size_t>(Register::ds) + 1 == ARRAY_SIZE(register_names));
 static inline const char* lookup_register(Register reg) {
     auto i = static_cast<u32>(reg);
     assert(i < ARRAY_SIZE(register_names));
@@ -34,13 +32,9 @@ enum class EffectiveAddressCalculation : u32 {
 const char* const effective_address_calculation_names[9] = {
     "bx + si", "bx + di", "bp + si", "bp + di",
     "si", "di", "bp", "bx",
-    "",
+    "DIRECT_ACCESS",
 };
 static_assert(static_cast<size_t>(EffectiveAddressCalculation::DirectAccess) + 1 == ARRAY_SIZE(effective_address_calculation_names));
-static inline EffectiveAddressCalculation lookup_effective_address_calculation(u8 rm) {
-    assert(rm < 8);
-    return static_cast<EffectiveAddressCalculation>(rm);
-}
 static inline const char* lookup_effective_address_calculation(EffectiveAddressCalculation eac) {
     auto i = static_cast<u32>(eac);
     assert(i < ARRAY_SIZE(effective_address_calculation_names));
@@ -109,6 +103,7 @@ struct Instruction {
     enum class Type : u32 {
         None,
         Mov,
+        Push,
 
         Add,
         Sub,
@@ -152,14 +147,17 @@ struct Instruction {
     Operand operands[2] = {{}, {}};
 };
 
-const char* const instruction_type_names[Instruction::instruction_count] = {
-    "", "mov", "add", "sub", "cmp",
+const char* const instruction_type_names[] = {
+    "", "mov", "push",
+
+    "add", "sub", "cmp",
 
     "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
     "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",
 
     "loopnz", "loopz", "loop", "jcxz",
 };
+static_assert(ARRAY_SIZE(instruction_type_names) == Instruction::instruction_count);
 static inline const char* lookup_instruction_type(Instruction::Type type) {
     auto i = static_cast<u32>(type);
     assert(i < Instruction::instruction_count);
@@ -171,5 +169,5 @@ static inline const char* lookup_instruction_type(const Instruction& i) {
 
 struct Program;
 
-Instruction decode_instruction_at(const Program& program, u64 start);
+Instruction decode_instruction_at(const Program& program, u32 start);
 void output_instruction_assembly(FILE* out, const Instruction& instruction);

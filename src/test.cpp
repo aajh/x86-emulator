@@ -66,6 +66,7 @@ static error_code test_disassembler(const char* filename) {
 
 const char test_prefix[] = "../computer_enhance/perfaware/";
 const char* tests[] = {
+    "part1/listing_0040_challenge_movs",
     "part1/listing_0041_add_sub_cmp_jnz",
     "part1/listing_0042_completionist_decode",
 };

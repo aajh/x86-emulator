@@ -37,7 +37,22 @@ static Instruction::Type lookup_loop_instruction(u8 i) {
     return lookup::loop_instructions[i];
 }
 
-static bool read_displacement(const Program& program, u64 start, u8 displacement_bytes, bool sign_extension, i32& result) {
+static Register lookup_register(bool w, u8 reg) {
+    assert(reg < 8);
+    return static_cast<Register>(w ? reg : reg + 8);
+}
+
+static Register lookup_segment_register(u8 reg) {
+    assert(reg < 4);
+    return static_cast<Register>(reg + 16);
+}
+
+static EffectiveAddressCalculation lookup_effective_address_calculation(u8 rm) {
+    assert(rm < 8);
+    return static_cast<EffectiveAddressCalculation>(rm);
+}
+
+static bool read_displacement(const Program& program, u32 start, u8 displacement_bytes, bool sign_extension, i32& result) {
     assert(displacement_bytes <= 2);
     if (!displacement_bytes) return false;
     if (start + displacement_bytes > program.size) return true;
@@ -54,7 +69,7 @@ static bool read_displacement(const Program& program, u64 start, u8 displacement
     return false;
 }
 
-static bool read_data(const Program& program, u64 start, bool wide, u16& result) {
+static bool read_data(const Program& program, u32 start, bool wide, u16& result) {
     if (start + wide >= program.size) return true;
 
     u8 data_lo = program.data[start];
@@ -64,7 +79,7 @@ static bool read_data(const Program& program, u64 start, bool wide, u16& result)
     return false;
 }
 
-static bool decode_rm_with_register(const Program& program, u64 start, Instruction& i) {
+static bool decode_rm_with_register(const Program& program, u32 start, Instruction& i) {
     if (start + 1 >= program.size) return true;
 
     u8 a = program.data[start];
@@ -141,7 +156,7 @@ static bool decode_rm_with_register(const Program& program, u64 start, Instructi
     return false;
 }
 
-static bool decode_immediate_to_rm(const Program& program, u64 start, Instruction& i) {
+static bool decode_immediate_to_rm(const Program& program, u32 start, Instruction& i) {
     if (start + 1 >= program.size) return true;
 
     u8 a = program.data[start];
@@ -170,7 +185,7 @@ static bool decode_immediate_to_rm(const Program& program, u64 start, Instructio
 
     i.size = 2 + displacement_bytes + (wide_data ? 2 : 1);
     if (w) {
-        i.flags |= Instruction::Flag::Wide;
+        i.flags |= Instruction::Wide;
     }
     if (i.type != Instruction::Type::Mov) {
         i.type = lookup_arithmetic_operation(op);
@@ -190,7 +205,7 @@ static bool decode_immediate_to_rm(const Program& program, u64 start, Instructio
 }
 
 
-static void decode_ip_inc(const Program& program, u64 start, Instruction& i, uint8_t bitmask, lookup_function look) {
+static void decode_ip_inc(const Program& program, u32 start, Instruction& i, uint8_t bitmask, lookup_function look) {
     if (start + 1 >= program.size) return;
 
     u8 a = program.data[start];
@@ -206,7 +221,7 @@ static void decode_ip_inc(const Program& program, u64 start, Instruction& i, uin
     i.operands[0] = adjusted_ip_inc;
 }
 
-Instruction decode_instruction_at(const Program& program, u64 start) {
+Instruction decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
 
@@ -244,7 +259,7 @@ Instruction decode_instruction_at(const Program& program, u64 start) {
         i.operands[0] = lookup_register(w, reg);
         i.operands[1] = data;
     } else if ((a & 0b11111110) == 0b10100000) {
-        // Mov: Memory to accumulator
+        // MOV: Memory to accumulator
         bool w = a & 1;
         i32 address = 0;
         if (read_displacement(program, start + 1, 1 + w, true, address)) return i;
@@ -258,7 +273,7 @@ Instruction decode_instruction_at(const Program& program, u64 start) {
         i.operands[0] = w ? Register::ax : Register::al;
         i.operands[1] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, address};
     } else if ((a & 0b11111110) == 0b10100010) {
-        // Mov: Accumulator to memory
+        // MOV: Accumulator to memory
         bool w = a & 1;
         i32 address;
         if (read_displacement(program, start + 1, 1 + w, true, address)) return i;
@@ -297,6 +312,63 @@ Instruction decode_instruction_at(const Program& program, u64 start) {
         decode_ip_inc(program, start, i, 0b1111, lookup_jmp_instruction);
     } else if ((a & 0b11111100) == 0b11100000) {
         decode_ip_inc(program, start, i, 0b11, lookup_loop_instruction);
+    } else if (a == 0xff) {
+        // PUSH: Register/memory
+        if (start + 1 >= program.size) return i;
+
+        u8 b = program.data[start + 1];
+        if ((b & 0b00111000) >> 3 != 0b110) return i;
+
+        u8 mod = (b & 0b11000000) >> 6;
+        u8 rm = b & 0b111;
+
+        bool is_direct_address = mod == 0 && rm == 0b110;
+        auto eac = lookup_effective_address_calculation(rm);
+
+        u8 displacement_bytes = 0;
+        if (mod == 1) {
+            displacement_bytes = 1;
+        } else if (mod == 2 || is_direct_address) {
+            displacement_bytes = 2;
+        }
+
+        i32 displacement = 0;
+        if (read_displacement(program, start + 2, displacement_bytes, true, displacement)) return i;
+
+        i.size = 2 + displacement_bytes;
+        i.type = Instruction::Type::Push;
+        i.flags |= Instruction::Wide;
+
+        switch (mod) {
+            case 0:
+            case 1:
+            case 2:
+                if (is_direct_address) {
+                    i.operands[0] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
+                } else {
+                    i.operands[0] = MemoryOperand{eac, displacement};
+                }
+                break;
+            case 3:
+                i.operands[0] = lookup_register(true, rm);
+                break;
+        }
+    } else if ((a & 0b11111000) == 0b01010000) {
+        // PUSH: Register
+        u8 reg = a & 0b111;
+
+        i.size = 1;
+        i.type = Instruction::Type::Push;
+        i.flags |= Instruction::Wide;
+        i.operands[0] = lookup_register(true, reg);
+    } else if ((a & 0b11100111) == 0b110) {
+        // PUSH: Segment register
+        u8 segment_reg = (a & 0b11000) >> 3;
+
+        i.size = 1;
+        i.type = Instruction::Type::Push;
+        i.flags |= Instruction::Wide;
+        i.operands[0] = lookup_segment_register(segment_reg);
     }
 
     return i;
@@ -314,6 +386,9 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
             fprintf(out, "%s", lookup_register(o.reg));
             break;
         case Memory:
+            if (operand_index == 0 && i.operands[1].type == None) {
+                fprintf(out, "%s ", i.flags & Instruction::Wide ? "word" : "byte");
+            }
             if (o.memory.eac == EffectiveAddressCalculation::DirectAccess) {
                 fprintf(out, "[%d]", o.memory.displacement);
                 break;
@@ -329,7 +404,7 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
                 fprintf(out, "$%c%d", o.immediate < 0 ? '-' : '+', abs(o.immediate));
                 break;
             }
-            if (operand_index && oo.type != Register) {
+            if (operand_index == 1 && oo.type != Register) {
                 fprintf(out, "%s ", i.flags & Instruction::Wide ? "word" : "byte");
             }
             fprintf(out, "%d", o.immediate);
