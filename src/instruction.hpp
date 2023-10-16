@@ -111,6 +111,8 @@ struct Instruction {
         Add, Adc, Inc, Aaa, Daa,
         Sub, Sbb, Dec, Neg,
         Cmp, Aas, Das,
+        Mul, Imul, Aam,
+        Div, Idiv, Aad,
 
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
@@ -128,6 +130,8 @@ struct Instruction {
         "add", "adc", "inc", "aaa", "daa",
         "sub", "sbb", "dec", "neg",
         "cmp", "aas", "das",
+        "mul", "imul", "aam",
+        "div", "idiv", "aad",
 
         "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",

@@ -249,6 +249,10 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     else if ((a & ~1) == (u8)~1 && op == 0) type = Inc;
     else if ((a & ~1) == (u8)~1 && op == 1) type = Dec;
     else if ((a & ~1) == 0b11110110 && op == 0b011) type = Neg;
+    else if ((a & ~1) == 0b11110110 && op == 0b100) type = Mul;
+    else if ((a & ~1) == 0b11110110 && op == 0b101) type = Imul;
+    else if ((a & ~1) == 0b11110110 && op == 0b110) type = Div;
+    else if ((a & ~1) == 0b11110110 && op == 0b111) type = Idiv;
     else return;
 
     bool w = a & 1 || (type == Push || type == Pop);
@@ -342,6 +346,17 @@ static void decode_inc_dec_register(const Program& program, u32 start, Instructi
     i.operands[0] = lookup_register(true, reg);
 }
 
+static void decode_aam_aad(const Program& program, u32 start, Instruction& i) {
+    if (start + 1 >= program.size) return;
+
+    u8 a = program.data[start];
+    u8 b = program.data[start + 1];
+    if (b != 0b00001010) return;
+
+    i.size = 2;
+    i.type = a & 1 ? Aad : Aam;
+}
+
 Instruction decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
@@ -414,11 +429,13 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if (a == 0b00100111) {
         i.type = Daa;
     } else if ((a & ~1) == 0b11110110) {
-        decode_rm(program, start, i); // NEG
+        decode_rm(program, start, i); // NEG or MUL or IMUL or DIV or IDIV
     } else if (a == 0b00111111) {
         i.type = Aas;
     } else if (a == 0b00101111) {
         i.type = Das;
+    } else if ((a & ~1) == 0b11010100) {
+        decode_aam_aad(program, start, i);
     } else {
         fprintf(stderr, "Unimplemented opcode\n");
     }
