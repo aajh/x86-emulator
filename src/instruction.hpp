@@ -109,8 +109,8 @@ struct Instruction {
         Lahf, Sahf, Pushf, Popf,
 
         Add, Adc, Inc, Aaa, Daa,
-        Sub, Sbb, Dec,
-        Cmp,
+        Sub, Sbb, Dec, Neg,
+        Cmp, Aas, Das,
 
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
@@ -126,8 +126,8 @@ struct Instruction {
         "lahf", "sahf", "pushf", "popf",
 
         "add", "adc", "inc", "aaa", "daa",
-        "sub", "sbb", "dec",
-        "cmp",
+        "sub", "sbb", "dec", "neg",
+        "cmp", "aas", "das",
 
         "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",

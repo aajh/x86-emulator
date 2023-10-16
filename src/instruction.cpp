@@ -235,7 +235,7 @@ static void decode_ip_inc(const Program& program, u32 start, Instruction& i, uin
     i.operands[0] = adjusted_ip_inc;
 }
 
-static void decode_push_pop_inc_dec_rm(const Program& program, u32 start, Instruction& i) {
+static void decode_rm(const Program& program, u32 start, Instruction& i) {
     if (start + 1 >= program.size) return;
 
     u8 a = program.data[start];
@@ -248,6 +248,7 @@ static void decode_push_pop_inc_dec_rm(const Program& program, u32 start, Instru
     else if (a == 0b10001111 && op == 0) type = Pop;
     else if ((a & ~1) == (u8)~1 && op == 0) type = Inc;
     else if ((a & ~1) == (u8)~1 && op == 1) type = Dec;
+    else if ((a & ~1) == 0b11110110 && op == 0b011) type = Neg;
     else return;
 
     bool w = a & 1 || (type == Push || type == Pop);
@@ -371,13 +372,13 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if ((a & 0b11111100) == 0b11100000) {
         decode_ip_inc(program, start, i, 0b11, lookup<loop_instructions>);
     } else if ((a & ~1) == (u8)~1) {
-        decode_push_pop_inc_dec_rm(program, start, i); // PUSH or INC or DEC
+        decode_rm(program, start, i); // PUSH or INC or DEC
     } else if ((a & 0b11111000) == 0b01010000) {
         decode_push_pop_register(program, start, i, false); // PUSH
     } else if ((a & 0b11100111) == 0b110) {
         decode_push_pop_segment_register(program, start, i, false); // PUSH
     } else if (a == 0b10001111) {
-        decode_push_pop_inc_dec_rm(program, start, i); // POP
+        decode_rm(program, start, i); // POP
     } else if ((a & 0b11111000) == 0b01011000) {
         decode_push_pop_register(program, start, i, true); // POP
     } else if ((a & 0b11100111) == 0b111) {
@@ -412,6 +413,12 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         i.type = Aaa;
     } else if (a == 0b00100111) {
         i.type = Daa;
+    } else if ((a & ~1) == 0b11110110) {
+        decode_rm(program, start, i); // NEG
+    } else if (a == 0b00111111) {
+        i.type = Aas;
+    } else if (a == 0b00101111) {
+        i.type = Das;
     } else {
         fprintf(stderr, "Unimplemented opcode\n");
     }
