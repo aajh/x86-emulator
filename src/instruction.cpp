@@ -297,6 +297,26 @@ static void decode_xchg_register_accumulator(const Program& program, u32 start, 
     i.operands[1] = lookup_register(true, reg);
 }
 
+static void decode_in(const Program& program, u32 start, Instruction& i) {
+    u8 a = program.data[start];
+    bool fixed_port = !(a & 0b1000);
+    bool w = a & 1;
+
+    u16 data;
+    if (fixed_port && read_data(program, start + 1, false, data)) return;
+
+    i.size = 1 + fixed_port;
+    i.type = In;
+    if (w) i.flags |= Instruction::Wide;
+
+    i.operands[0] = w ? Register::ax : Register::al;
+    if (fixed_port) {
+        i.operands[1] = data;
+    } else {
+        i.operands[1] = Register::dx;
+    }
+}
+
 Instruction decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
@@ -341,6 +361,8 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         decode_rm_register(program, start, i, Xchg);
     } else if ((a & 0b11111000) == 0b10010000) {
         decode_xchg_register_accumulator(program, start, i);
+    } else if ((a & 0b11110110) == 0b11100100) {
+        decode_in(program, start, i);
     }
 
     return i;
