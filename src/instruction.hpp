@@ -118,7 +118,7 @@ struct Instruction {
         Not,
         Shl, Shr, Sar, Rol,
         Ror, Rcl, Rcr,
-        And,
+        And, Test,
 
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
@@ -143,7 +143,7 @@ struct Instruction {
         "not",
         "shl", "shr", "sar", "rol",
         "ror", "rcl", "rcr",
-        "and",
+        "and", "test",
 
         "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",

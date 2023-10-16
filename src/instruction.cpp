@@ -22,7 +22,7 @@ static constexpr std::array operations_1 = {
 };
 
 static constexpr std::array operations_2 = {
-    None, None, Not, Neg,
+    Test, None, Not, Neg,
     Mul, Imul, Div, Idiv,
 };
 
@@ -215,7 +215,7 @@ static void decode_mov_memory_accumulator(const Program& program, u32 start, Ins
     if (to_accumulator) swap(i.operands[0], i.operands[1]);
 }
 
-static void decode_operations_1_immediate_to_accumulator(const Program& program, u32 start, Instruction& i) {
+static void decode_immediate_to_accumulator(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
     u8 a = program.data[start];
     u8 op = (a & 0b00111000) >> 3;
     bool w = a & 1;
@@ -224,7 +224,7 @@ static void decode_operations_1_immediate_to_accumulator(const Program& program,
     if (read_data(program, start + 1, w, data)) return;
 
     i.size = w ? 3 : 2;
-    i.type = lookup<operations_1>(op);
+    i.type = type != None ? type : lookup<operations_1>(op);
     if (w) i.flags |= Instruction::Flag::Wide;
 
     i.operands[0] = w ? Register::ax : Register::al;
@@ -272,9 +272,13 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     bool v = is_shift && a & 0b10;
     bool w = a & 1 || (type == Push || type == Pop);
     bool s = true;
+    bool has_data = type == Test;
     COMMON_MOD_RM_DEFINITIONS;
 
-    i.size = 2 + displacement_bytes;
+    u16 data = 0;
+    if (has_data && read_data(program, start + 2 + displacement_bytes, w, data)) return;
+
+    i.size = 2 + displacement_bytes + (has_data ? w + 1 : 0);
     i.type = type;
     if (w) i.flags |= Instruction::Wide;
 
@@ -298,6 +302,9 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     if (is_shift) {
         if (v) i.operands[1] = Register::cl;
         else i.operands[1] = 1;
+    }
+    if (has_data) {
+        i.operands[1] = data;
     }
 }
 
@@ -401,7 +408,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if ((a & 0b11111100) == 0b10000000) {
         decode_immediate_to_rm(program, start, i, false); // Lookup from operations_1
     } else if ((a & 0b11000110) == 0b00000100) {
-        decode_operations_1_immediate_to_accumulator(program, start, i);
+        decode_immediate_to_accumulator(program, start, i, None); // Lookup from operations_1
     } else if ((a & 0b11110000) == 0b01110000) {
         decode_ip_inc(program, start, i, 0b1111, lookup<jmp_instructions>);
     } else if ((a & 0b11111100) == 0b11100000) {
@@ -461,10 +468,13 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if (a == 0b10011001) {
         i.type = Cwd;
     } else if ((a & 0b11111100) == 0b11010000) {
-        // Shift operator
-        decode_rm(program, start, i);
+        decode_rm(program, start, i); // Shift operator
+    } else if ((a & ~0b11) == 0b10000100) {
+        decode_rm_register(program, start, i, Test);
+    } else if ((a & ~1) == 0b10101000) {
+        decode_immediate_to_accumulator(program, start, i, Test);
     } else {
-        fprintf(stderr, "Unimplemented opcode\n");
+        fprintf(stderr, "Unimplemented opcode 0x%X\n", a);
     }
 
     return i;
