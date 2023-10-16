@@ -83,7 +83,7 @@ static constexpr EffectiveAddressCalculation lookup_effective_address_calculatio
     return false;
 }
 
-static void decode_rm_with_register(const Program& program, u32 start, Instruction& i, bool is_mov) {
+static void decode_rm_register(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
     if (start + 1 >= program.size) return;
 
     u8 a = program.data[start];
@@ -99,7 +99,7 @@ static void decode_rm_with_register(const Program& program, u32 start, Instructi
     COMMON_MOD_RM_DEFINITIONS;
 
     i.size = 2 + displacement_bytes;
-    i.type = is_mov ? Mov : lookup<arithmetic_operations>(op);
+    i.type = type != None ? type : lookup<arithmetic_operations>(op);
     if (w) i.flags |= Instruction::Flag::Wide;
 
     switch (mod) {
@@ -286,6 +286,17 @@ static void decode_push_pop_segment_register(const Program& program, u32 start, 
     i.operands[0] = lookup_segment_register(segment_reg);
 }
 
+static void decode_xchg_register_accumulator(const Program& program, u32 start, Instruction& i) {
+    u8 a = program.data[start];
+    u8 reg = a & 0b111;
+
+    i.size = 1;
+    i.type = Xchg;
+    i.flags |= Instruction::Wide;
+    i.operands[0] = Register::ax;
+    i.operands[1] = lookup_register(true, reg);
+}
+
 Instruction decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
@@ -295,7 +306,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
 
     u8 a = program.data[start];
     if ((a & 0b11111100) == 0b10001000) {
-        decode_rm_with_register(program, start, i, true); // MOV
+        decode_rm_register(program, start, i, Mov);
     } else if ((a & 0b11111110) == 0b11000110) {
         decode_immediate_to_rm(program, start, i, true); // MOV
     } else if ((a & 0b11110000) == 0b10110000) {
@@ -305,7 +316,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if ((a & 0b11111110) == 0b10100010) {
         decode_mov_memory_accumulator(program, start, i, false);
     } else if ((a & 0b11000100) == 0) {
-        decode_rm_with_register(program, start, i, false); // Arithmetic
+        decode_rm_register(program, start, i, None); // Arithmetic
     } else if ((a & 0b11111100) == 0b10000000) {
         decode_immediate_to_rm(program, start, i, false); // Arithmetic
     } else if ((a & 0b11000110) == 0b00000100) {
@@ -326,6 +337,10 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         decode_push_pop_register(program, start, i, true); // POP
     } else if ((a & 0b11100111) == 0b111) {
         decode_push_pop_segment_register(program, start, i, true); // POP
+    } else if ((a & ~1) == 0b10000110) {
+        decode_rm_register(program, start, i, Xchg);
+    } else if ((a & 0b11111000) == 0b10010000) {
+        decode_xchg_register_accumulator(program, start, i);
     }
 
     return i;

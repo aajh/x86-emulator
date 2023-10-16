@@ -104,7 +104,7 @@ struct Instruction {
     enum class Type : u32 {
         None,
 
-        Mov, Push, Pop,
+        Mov, Push, Pop, Xchg,
 
         Add, Sub, Cmp,
 
@@ -117,7 +117,7 @@ struct Instruction {
     static constexpr std::array instruction_type_names = {
         "UNKNOWN_INSTRUCTION",
 
-        "mov", "push", "pop",
+        "mov", "push", "pop", "xchg",
 
         "add", "sub", "cmp",
 
