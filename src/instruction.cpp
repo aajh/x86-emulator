@@ -17,8 +17,8 @@
 using enum Instruction::Type;
 
 static constexpr std::array operations_1 = {
-    Add, None, Adc, Sbb,
-    And, Sub, None, Cmp,
+    Add, Or, Adc, Sbb,
+    And, Sub, Xor, Cmp,
 };
 
 static constexpr std::array operations_2 = {
@@ -159,10 +159,10 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
     u8 op = (b & 0b00111000) >> 3;
     auto type = is_mov ? Mov : lookup<operations_1>(op);
 
-    bool s = a & 0b10 || type == And;
+    bool s = a & 0b10 || type == And || type == Or || type == Xor;
     bool w = a & 1;
 
-    bool wide_data = (is_mov || type == And) ? w : !s && w;
+    bool wide_data = (is_mov || type == And || type == Or || type == Xor) ? w : !s && w;
     COMMON_MOD_RM_DEFINITIONS;
 
     u16 data;
