@@ -27,8 +27,8 @@ static constexpr std::array operations_2 = {
 };
 
 static constexpr std::array operations_3 = {
-    None, None, Call, None,
-    Jmp, None, Push, None,
+    None, None, Call, Call,
+    Jmp, Jmp, Push, None,
 };
 
 static constexpr std::array shift_operations = {
@@ -315,6 +315,7 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     bool w = a & 1 || (type == Push || type == Pop);
     bool s = true;
     bool has_data = type == Test;
+    bool is_intersegment = (type == Call || type == Jmp) && (op & 1);
     COMMON_MOD_RM_DEFINITIONS;
 
     u16 data = 0;
@@ -323,6 +324,7 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     i.size = 2 + displacement_bytes + (has_data ? w + 1 : 0);
     i.type = type;
     i.flags.wide = w;
+    i.flags.intersegment = is_intersegment;
 
     if (mod == 3) {
         i.operands[0] = lookup_register(w, rm);
@@ -669,7 +671,7 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
             fprintf(out, "%s", lookup_register(o.reg));
             break;
         case Memory:
-            if (operand_index == 0 && (oo.type == None || oo.type == Immediate || is_shift(i))) {
+            if (operand_index == 0 && (oo.type == None || oo.type == Immediate || is_shift(i)) && (i.type != Call && i.type != Jmp)) {
                 fprintf(out, "%s ", i.flags.wide ? "word" : "byte");
             }
             if (i.segment_override) {
@@ -708,8 +710,12 @@ void output_instruction_assembly(FILE* out, const Instruction& i) {
 
     fprintf(out, "%s", lookup_instruction_type(i));
 
-    if (i.type == Ret && i.flags.intersegment) {
-        fprintf(out, "f");
+    if (i.flags.intersegment) {
+        if (i.type == Ret) {
+            fprintf(out, "f");
+        } else if ((i.type == Call || i.type == Jmp) && i.operands[1].type == Operand::Type::None) {
+            fprintf(out, " far");
+        }
     }
 
     if (is_string_manipulation(i)) fprintf(out, "%c", i.flags.wide ? 'w' : 'b');
