@@ -11,7 +11,7 @@
     if (is_direct_address) {\
         displacement_bytes = 2;\
     }\
-    i32 displacement = 0;\
+    i16 displacement = 0;\
     if (read_displacement(program, start + 2, displacement_bytes, s, displacement)) return;
 
 using enum Instruction::Type;
@@ -78,7 +78,7 @@ static constexpr EffectiveAddressCalculation lookup_effective_address_calculatio
     return static_cast<EffectiveAddressCalculation>(rm);
 }
 
-[[nodiscard]] static bool read_displacement(const Program& program, u32 start, u8 displacement_bytes, bool sign_extension, i32& result) {
+[[nodiscard]] static bool read_displacement(const Program& program, u32 start, u8 displacement_bytes, bool sign_extension_8_bit, i16& result) {
     assert(displacement_bytes <= 2);
     if (!displacement_bytes) return false;
     if (start + displacement_bytes > program.size) return true;
@@ -87,12 +87,9 @@ static constexpr EffectiveAddressCalculation lookup_effective_address_calculatio
     u8 displacement_hi = displacement_bytes == 2 ? program.data[start + 1] : 0;
 
     if (displacement_bytes == 2) {
-        // FIXME: conditional sign extension here might not be correct
-        // result = (i16)(displacement_lo | (displacement_hi << 8)); // The other option
-        u16 tmp = displacement_lo | (displacement_hi << 8);
-        result = sign_extension ? (i16)tmp : tmp;
+        result = (i16)(displacement_lo | (displacement_hi << 8));
     } else {
-        result = sign_extension ? (i8)displacement_lo : displacement_lo;
+        result = sign_extension_8_bit ? (i8)displacement_lo : displacement_lo;
     }
 
     return false;
@@ -218,7 +215,7 @@ static void decode_mov_immediate_to_register(const Program& program, u32 start, 
 static void decode_mov_memory_accumulator(const Program& program, u32 start, Instruction& i, bool to_accumulator) {
     u8 a = program.data[start];
     bool w = a & 1;
-    i32 address = 0;
+    i16 address = 0;
     if (read_displacement(program, start + 1, w + 1, true, address)) return;
 
     i.size = w ? 3 : 2;
@@ -477,7 +474,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     i.address = start;
     i.size = 1;
 
-read_after_lock:
+read_after_prefix:
     u8 a = program.data[start];
     if ((a & 0b1111'1100) == 0b1000'1000) {
         decode_rm_register(program, start, i, Mov);
@@ -583,10 +580,16 @@ read_after_lock:
         i.flags.lock = true;
         if (start + 1 < program.size) {
             ++start;
-            goto read_after_lock;
+            goto read_after_prefix;
         }
     } else if ((a & ~0b111) == 0b1101'1000) {
         decode_esc(program, start, i);
+    } else if ((a & 0b1110'0110) == 0b0010'0110) {
+        i.segment_override = lookup_segment_register((a >> 3) & 0b11);
+        if (start + 1 < program.size) {
+            ++start;
+            goto read_after_prefix;
+        }
     } else {
         fprintf(stderr, "Unimplemented opcode 0x%X\n", a);
     }
@@ -611,6 +614,9 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
         case Memory:
             if (operand_index == 0 && (oo.type == None || oo.type == Immediate || is_shift(i))) {
                 fprintf(out, "%s ", i.flags.wide ? "word" : "byte");
+            }
+            if (i.segment_override) {
+                fprintf(out, "%s:", lookup_register(*i.segment_override));
             }
             if (o.memory.eac == EffectiveAddressCalculation::DirectAccess) {
                 fprintf(out, "[%d]", o.memory.displacement);

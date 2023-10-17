@@ -2,6 +2,7 @@
 
 #include "common.hpp"
 #include <cstdio>
+#include <optional>
 
 enum class Register : u32 {
     ax, cx, dx, bx,
@@ -191,6 +192,7 @@ struct Instruction {
 
     Type type = Type::None;
     Flags flags = {};
+    std::optional<Register> segment_override;
 
     std::array<Operand, 2> operands = {};
 };
