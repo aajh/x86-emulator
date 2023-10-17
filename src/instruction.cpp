@@ -451,6 +451,19 @@ static void decode_direct_intersegment_call_jmp(const Program& program, u32 star
     i.operands[1] = ip;
 }
 
+static void decode_direct_call_jmp(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
+    u8 a = program.data[start];
+    bool short_ip_inc = a & 0b10;
+
+    // TODO: Check this (doesn't match asm file)
+    i16 ip_inc = 0;
+    if (read_displacement(program, start + 1, short_ip_inc ? 1 : 2, true, ip_inc)) return;
+
+    i.size = short_ip_inc ? 2 : 3;
+    i.type = type;
+    i.operands[0] = ip_inc;
+}
+
 static void decode_ret(const Program& program, u32 start, Instruction& i) {
     u8 a = program.data[start];
     bool has_data = !(a & 1);
@@ -598,8 +611,12 @@ read_after_prefix:
         decode_string_instruction(program, start, i);
     } else if (a == 0b1001'1010) {
         decode_direct_intersegment_call_jmp(program, start, i, Call);
+    } else if (a == 0b1110'1000) {
+        decode_direct_call_jmp(program, start, i, Call);
     } else if (a == 0b1110'1010) {
         decode_direct_intersegment_call_jmp(program, start, i, Jmp);
+    } else if ((a & 0b1111'1001) == 0b1110'1001) {
+        decode_direct_call_jmp(program, start, i, Jmp);
     } else if ((a & ~0b1001) == 0b1100'0010) {
         decode_ret(program, start, i);
     } else if ((a & ~1) == 0b1100'1100) {
@@ -690,6 +707,10 @@ void output_instruction_assembly(FILE* out, const Instruction& i) {
     }
 
     fprintf(out, "%s", lookup_instruction_type(i));
+
+    if (i.type == Ret && i.flags.intersegment) {
+        fprintf(out, "f");
+    }
 
     if (is_string_manipulation(i)) fprintf(out, "%c", i.flags.wide ? 'w' : 'b');
 
