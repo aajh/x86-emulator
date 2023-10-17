@@ -131,9 +131,9 @@ struct Instruction {
 
         Int, Int3, Into, Iret,
 
-        Clc, Cmc, Stc, Cld, Std, Cli, Sti, Hlt, Wait,
+        Clc, Cmc, Stc, Cld, Std, Cli, Sti, Hlt, Wait, Esc,
     };
-    static constexpr auto instruction_count = static_cast<size_t>(Type::Wait) + 1;
+    static constexpr auto instruction_count = static_cast<size_t>(Type::Esc) + 1;
     static constexpr std::array instruction_type_names = {
         "UNKNOWN_INSTRUCTION",
 
@@ -164,7 +164,7 @@ struct Instruction {
 
         "int", "int3", "into", "iret",
 
-        "clc", "cmc", "stc", "cld", "std", "cli", "sti", "hlt", "wait",
+        "clc", "cmc", "stc", "cld", "std", "cli", "sti", "hlt", "wait", "esc",
     };
     static_assert(instruction_type_names.size() == instruction_count);
 

@@ -446,6 +446,29 @@ static void decode_int(const Program& program, u32 start, Instruction& i) {
     if (has_data) i.operands[0] = data;
 }
 
+static void decode_esc(const Program& program, u32 start, Instruction& i) {
+    u8 a = program.data[start];
+    u8 b = program.data[start + 1];
+    u16 esc_opcode = (a & 0b111) | (b & 0b111'000);
+    bool s = true;
+
+    COMMON_MOD_RM_DEFINITIONS;
+
+    i.size = 2 + displacement_bytes;
+    i.type = Esc;
+    i.flags.wide = true;
+
+    i.operands[0] = esc_opcode;
+
+    if (mod == 3) {
+        i.operands[1] = lookup_register(true, rm);
+    } else if (is_direct_address) {
+        i.operands[1] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
+    } else {
+        i.operands[1] = MemoryOperand{eac, displacement};
+    }
+}
+
 Instruction decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
@@ -562,6 +585,8 @@ read_after_lock:
             ++start;
             goto read_after_lock;
         }
+    } else if ((a & ~0b111) == 0b1101'1000) {
+        decode_esc(program, start, i);
     } else {
         fprintf(stderr, "Unimplemented opcode 0x%X\n", a);
     }
