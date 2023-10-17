@@ -417,6 +417,20 @@ static void decode_rep(const Program& program, u32 start, Instruction& i) {
     if (start + 1 < program.size) decode_string_instruction(program, start + 1, i);
 }
 
+static void decode_direct_intersegment_call_jmp(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
+    u16 ip;
+    if (read_data(program, start + 1, true, ip)) return;
+    u16 cs;
+    if (read_data(program, start + 3, true, cs)) return;
+
+    i.size = 5;
+    i.type = type;
+    i.flags.intersegment = true;
+
+    i.operands[0] = cs;
+    i.operands[1] = ip;
+}
+
 static void decode_ret(const Program& program, u32 start, Instruction& i) {
     u8 a = program.data[start];
     bool has_data = !(a & 1);
@@ -560,6 +574,10 @@ read_after_prefix:
         decode_rep(program, start, i);
     } else if ((a & ~0b1111) == 0b1010'0000) {
         decode_string_instruction(program, start, i);
+    } else if (a == 0b1001'1010) {
+        decode_direct_intersegment_call_jmp(program, start, i, Call);
+    } else if (a == 0b1110'1010) {
+        decode_direct_intersegment_call_jmp(program, start, i, Jmp);
     } else if ((a & ~0b1001) == 0b1100'0010) {
         decode_ret(program, start, i);
     } else if ((a & ~1) == 0b1100'1100) {
@@ -658,7 +676,7 @@ void output_instruction_assembly(FILE* out, const Instruction& i) {
         output_operand(out, i, 0);
 
         if (i.operands[1].type != Operand::Type::None) {
-            fprintf(out, ", ");
+            fprintf(out, "%s", !i.flags.intersegment ? ", " : ":");
             output_operand(out, i, 1);
         }
     }
