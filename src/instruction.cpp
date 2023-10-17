@@ -228,6 +228,35 @@ static void decode_mov_memory_accumulator(const Program& program, u32 start, Ins
     if (to_accumulator) swap(i.operands[0], i.operands[1]);
 }
 
+static void decode_mov_rm_segment_register(const Program& program, u32 start, Instruction& i) {
+    if (start + 1 >= program.size) return;
+
+    u8 a = program.data[start];
+    u8 b = program.data[start + 1];
+
+    bool to_segment_register = a & 0b10;
+    u8 segment_reg = (b & 0b1'1000) >> 3;
+    bool s = true;
+
+    COMMON_MOD_RM_DEFINITIONS;
+
+    i.size = 2 + displacement_bytes;
+    i.type = Mov;
+    i.flags.wide = true;
+
+    if (mod == 3) {
+        i.operands[0] = lookup_register(true, rm);
+    } else if (is_direct_address) {
+        i.operands[0] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
+    } else {
+        i.operands[0] = MemoryOperand{eac, displacement};
+    }
+
+    i.operands[1] = lookup_segment_register(segment_reg);
+
+    if (to_segment_register) swap(i.operands[0], i.operands[1]);
+}
+
 static void decode_immediate_to_accumulator(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
     u8 a = program.data[start];
     u8 op = (a & 0b0011'1000) >> 3;
@@ -295,21 +324,12 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     i.type = type;
     i.flags.wide = w;
 
-    switch (mod) {
-        case 0:
-        case 1:
-        case 2:
-            if (is_direct_address) {
-                i.operands[0] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
-            } else {
-                i.operands[0] = MemoryOperand{eac, displacement};
-            }
-            break;
-        case 3:
-            i.operands[0] = lookup_register(w, rm);
-            break;
-        default:
-            assert(false);
+    if (mod == 3) {
+        i.operands[0] = lookup_register(w, rm);
+    } else if (is_direct_address) {
+        i.operands[0] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
+    } else {
+        i.operands[0] = MemoryOperand{eac, displacement};
     }
 
     if (is_shift) {
@@ -500,6 +520,8 @@ read_after_prefix:
         decode_mov_memory_accumulator(program, start, i, true);
     } else if ((a & 0b1111'1110) == 0b1010'0010) {
         decode_mov_memory_accumulator(program, start, i, false);
+    } else if ((a & ~0b10) == 0b1000'1100) {
+        decode_mov_rm_segment_register(program, start, i);
     } else if ((a & 0b1100'0100) == 0) {
         decode_rm_register(program, start, i, None); // Lookup from operations_1
     } else if ((a & 0b1111'1100) == 0b1000'0000) {
