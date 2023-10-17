@@ -18,7 +18,7 @@ inline constexpr std::array register_names = {
     "es", "cs", "ss", "ds",
 };
 static_assert(register_names.size() == static_cast<size_t>(Register::ds) + 1);
-static inline const char* lookup_register(Register reg) {
+static constexpr const char* lookup_register(Register reg) {
     auto i = static_cast<u32>(reg);
     assert(i < std::size(register_names));
     return register_names[i];
@@ -36,7 +36,7 @@ inline constexpr std::array effective_address_calculation_names = {
 };
 static_assert(effective_address_calculation_names.size() == static_cast<size_t>(EffectiveAddressCalculation::DirectAccess) + 1);
 
-static inline const char* lookup_effective_address_calculation(EffectiveAddressCalculation eac) {
+static constexpr const char* lookup_effective_address_calculation(EffectiveAddressCalculation eac) {
     auto i = static_cast<u32>(eac);
     assert(i < std::size(effective_address_calculation_names));
     return effective_address_calculation_names[i];
@@ -156,36 +156,45 @@ struct Instruction {
     };
     static_assert(instruction_type_names.size() == instruction_count);
 
-    enum Flag : u32 {
-        Wide = 0x1,
-        IpInc = 0x2,
-        Rep = 0x4,
-        RepNz = 0x8,
+    struct Flags {
+        bool wide : 1;
+        bool ip_inc : 1;
+        bool rep : 1;
+        bool rep_nz : 1;
+
+        auto& value() {
+            using int_type = u8;
+            static_assert(sizeof(int_type) == sizeof(Flags));
+            return *reinterpret_cast<int_type*>(this);
+        }
+        void reset() {
+            value() = 0;
+        }
     };
 
     u32 address = 0;
     u32 size = 0;
 
     Type type = Type::None;
-    u32 flags = 0;
+    Flags flags = {};
 
     std::array<Operand, 2> operands = {};
 };
 
-static inline const char* lookup_instruction_type(Instruction::Type type) {
+static constexpr const char* lookup_instruction_type(Instruction::Type type) {
     auto i = static_cast<u32>(type);
     assert(i < std::size(Instruction::instruction_type_names));
     return Instruction::instruction_type_names[i];
 }
-static inline const char* lookup_instruction_type(const Instruction& i) {
+static constexpr const char* lookup_instruction_type(const Instruction& i) {
     return lookup_instruction_type(i.type);
 }
-static inline bool is_shift(const Instruction& i) {
+static constexpr bool is_shift(const Instruction& i) {
     using enum Instruction::Type;
     auto t = static_cast<size_t>(i.type);
     return static_cast<size_t>(Shl) <= t && t <= static_cast<size_t>(Rcr);
 }
-static inline bool is_string_manipulation(const Instruction& i) {
+static constexpr bool is_string_manipulation(const Instruction& i) {
     using enum Instruction::Type;
     auto t = static_cast<size_t>(i.type);
     return static_cast<size_t>(Movs) <= t && t <= static_cast<size_t>(Stos);

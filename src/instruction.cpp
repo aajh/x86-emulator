@@ -3,7 +3,7 @@
 #include "program.hpp"
 
 #define COMMON_MOD_RM_DEFINITIONS\
-    u8 mod = (b & 0b11000000) >> 6;\
+    u8 mod = (b & 0b1100'0000) >> 6;\
     u8 rm = b & 0b111;\
     bool is_direct_address = mod == 0 && rm == 0b110;\
     auto eac = lookup_effective_address_calculation(rm);\
@@ -105,10 +105,10 @@ static void decode_rm_register(const Program& program, u32 start, Instruction& i
     u8 b = program.data[start + 1];
 
     bool no_d_or_w = (type == Lea || type == Lds || type == Les);
-    u8 op = (a & 0b00111000) >> 3;
+    u8 op = (a & 0b0011'1000) >> 3;
     bool d = a & 0b10 || no_d_or_w;
     bool w = a & 1 || no_d_or_w;
-    u8 reg = (b & 0b00111000) >> 3;
+    u8 reg = (b & 0b0011'1000) >> 3;
     bool s = true;
 
     auto looked_reg = lookup_register(w, reg);
@@ -116,7 +116,7 @@ static void decode_rm_register(const Program& program, u32 start, Instruction& i
 
     i.size = 2 + displacement_bytes;
     i.type = type != None ? type : lookup<operations_1>(op);
-    if (w) i.flags |= Instruction::Flag::Wide;
+    i.flags.wide = w;
 
     switch (mod) {
         case 0:
@@ -161,7 +161,7 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
     u8 a = program.data[start];
     u8 b = program.data[start + 1];
 
-    u8 op = (b & 0b00111000) >> 3;
+    u8 op = (b & 0b0011'1000) >> 3;
     auto type = is_mov ? Mov : lookup<operations_1>(op);
 
     bool s = a & 0b10 || type == And || type == Or || type == Xor;
@@ -175,7 +175,7 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
 
     i.size = 2 + displacement_bytes + (wide_data ? 2 : 1);
     i.type = type;
-    if (w) i.flags |= Instruction::Wide;
+    i.flags.wide = w;
 
     if (mod == 3) {
         i.operands[0] = lookup_register(w, rm);
@@ -198,7 +198,7 @@ static void decode_mov_immediate_to_register(const Program& program, u32 start, 
 
     i.size = w ? 3 : 2;
     i.type = Mov;
-    if (w) i.flags |= Instruction::Flag::Wide;
+    i.flags.wide = w;
 
     i.operands[0] = lookup_register(w, reg);
     i.operands[1] = data;
@@ -212,7 +212,7 @@ static void decode_mov_memory_accumulator(const Program& program, u32 start, Ins
 
     i.size = w ? 3 : 2;
     i.type = Mov;
-    if (w) i.flags |= Instruction::Flag::Wide;
+    i.flags.wide = w;
 
     i.operands[0] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, address};
     i.operands[1] = w ? Register::ax : Register::al;
@@ -222,7 +222,7 @@ static void decode_mov_memory_accumulator(const Program& program, u32 start, Ins
 
 static void decode_immediate_to_accumulator(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
     u8 a = program.data[start];
-    u8 op = (a & 0b00111000) >> 3;
+    u8 op = (a & 0b0011'1000) >> 3;
     bool w = a & 1;
 
     u16 data;
@@ -230,7 +230,7 @@ static void decode_immediate_to_accumulator(const Program& program, u32 start, I
 
     i.size = w ? 3 : 2;
     i.type = type != None ? type : lookup<operations_1>(op);
-    if (w) i.flags |= Instruction::Flag::Wide;
+    i.flags.wide = w;
 
     i.operands[0] = w ? Register::ax : Register::al;
     i.operands[1] = data;
@@ -248,7 +248,7 @@ static void decode_ip_inc(const Program& program, u32 start, Instruction& i, uin
 
     i.size = 2;
     i.type = look(lookup_i);
-    i.flags |= Instruction::IpInc;
+    i.flags.ip_inc = true;
     i.operands[0] = adjusted_ip_inc;
 }
 
@@ -258,15 +258,15 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     u8 a = program.data[start];
     u8 b = program.data[start + 1];
 
-    bool is_shift = (a & 0b11111100) == 0b11010000;
-    u8 op = (b & 0b00111000) >> 3;
+    bool is_shift = (a & 0b1111'1100) == 0b1101'0000;
+    u8 op = (b & 0b0011'1000) >> 3;
 
     auto type = None;
     if (a == 0xff &&  op == 0b110) type = Push;
-    else if (a == 0b10001111 && op == 0) type = Pop;
+    else if (a == 0b1000'1111 && op == 0) type = Pop;
     else if ((a & ~1) == (u8)~1 && op == 0) type = Inc;
     else if ((a & ~1) == (u8)~1 && op == 1) type = Dec;
-    else if ((a & ~1) == 0b11110110) type = lookup<operations_2>(op);
+    else if ((a & ~1) == 0b1111'0110) type = lookup<operations_2>(op);
     else if (is_shift) type = lookup<shift_operations>(op);
 
     if (type == None) {
@@ -285,7 +285,7 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
 
     i.size = 2 + displacement_bytes + (has_data ? w + 1 : 0);
     i.type = type;
-    if (w) i.flags |= Instruction::Wide;
+    i.flags.wide = w;
 
     switch (mod) {
         case 0:
@@ -319,17 +319,17 @@ static void decode_push_pop_register(const Program& program, u32 start, Instruct
 
     i.size = 1;
     i.type = is_pop ? Pop : Push;
-    i.flags |= Instruction::Wide;
+    i.flags.wide = true;
     i.operands[0] = lookup_register(true, reg);
 }
 
 static void decode_push_pop_segment_register(const Program& program, u32 start, Instruction& i, bool is_pop) {
     u8 a = program.data[start];
-    u8 segment_reg = (a & 0b11000) >> 3;
+    u8 segment_reg = (a & 0b1'1000) >> 3;
 
     i.size = 1;
     i.type = is_pop ? Pop : Push;
-    i.flags |= Instruction::Wide;
+    i.flags.wide = true;
     i.operands[0] = lookup_segment_register(segment_reg);
 }
 
@@ -339,7 +339,7 @@ static void decode_xchg_register_accumulator(const Program& program, u32 start, 
 
     i.size = 1;
     i.type = Xchg;
-    i.flags |= Instruction::Wide;
+    i.flags.wide = true;
     i.operands[0] = Register::ax;
     i.operands[1] = lookup_register(true, reg);
 }
@@ -356,7 +356,7 @@ static void decode_in_out(const Program& program, u32 start, Instruction& i, Ins
 
     i.size = 1 + fixed_port;
     i.type = type;
-    if (w) i.flags |= Instruction::Wide;
+    i.flags.wide = w;
 
     i.operands[0] = w ? Register::ax : Register::al;
     if (fixed_port) {
@@ -374,7 +374,7 @@ static void decode_inc_dec_register(const Program& program, u32 start, Instructi
 
     i.size = 1;
     i.type = a & 0b1000 ? Dec : Inc;
-    i.flags |= Instruction::Wide;
+    i.flags.wide = true;
     i.operands[0] = lookup_register(true, reg);
 }
 
@@ -383,7 +383,7 @@ static void decode_aam_aad(const Program& program, u32 start, Instruction& i) {
 
     u8 a = program.data[start];
     u8 b = program.data[start + 1];
-    if (b != 0b00001010) return;
+    if (b != 0b0000'1010) return;
 
     i.size = 2;
     i.type = a & 1 ? Aad : Aam;
@@ -394,9 +394,9 @@ static void decode_string_instruction(const Program& program, u32 start, Instruc
     u8 op = (a & 0b1110) >> 1;
     bool w = a & 1;
 
-    i.size = 1 + (i.flags & Instruction::Rep ? 1 : 0);
+    i.size = 1 + i.flags.rep;
     i.type = lookup<string_instructions>(op);
-    if (w) i.flags |= Instruction::Wide;
+    i.flags.wide = w;
 }
 
 Instruction decode_instruction_at(const Program& program, u32 start) {
@@ -408,94 +408,94 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     i.size = 1;
 
     u8 a = program.data[start];
-    if ((a & 0b11111100) == 0b10001000) {
+    if ((a & 0b1111'1100) == 0b1000'1000) {
         decode_rm_register(program, start, i, Mov);
-    } else if ((a & 0b11111110) == 0b11000110) {
+    } else if ((a & 0b1111'1110) == 0b1100'0110) {
         decode_immediate_to_rm(program, start, i, true); // MOV
-    } else if ((a & 0b11110000) == 0b10110000) {
+    } else if ((a & 0b111'10000) == 0b1011'0000) {
         decode_mov_immediate_to_register(program, start, i);
-    } else if ((a & 0b11111110) == 0b10100000) {
+    } else if ((a & 0b1111'1110) == 0b1010'0000) {
         decode_mov_memory_accumulator(program, start, i, true);
-    } else if ((a & 0b11111110) == 0b10100010) {
+    } else if ((a & 0b1111'1110) == 0b1010'0010) {
         decode_mov_memory_accumulator(program, start, i, false);
-    } else if ((a & 0b11000100) == 0) {
+    } else if ((a & 0b1100'0100) == 0) {
         decode_rm_register(program, start, i, None); // Lookup from operations_1
-    } else if ((a & 0b11111100) == 0b10000000) {
+    } else if ((a & 0b1111'1100) == 0b1000'0000) {
         decode_immediate_to_rm(program, start, i, false); // Lookup from operations_1
-    } else if ((a & 0b11000110) == 0b00000100) {
+    } else if ((a & 0b1100'0110) == 0b0000'0100) {
         decode_immediate_to_accumulator(program, start, i, None); // Lookup from operations_1
-    } else if ((a & 0b11110000) == 0b01110000) {
+    } else if ((a & 0b1111'0000) == 0b0111'0000) {
         decode_ip_inc(program, start, i, 0b1111, lookup<jmp_instructions>);
-    } else if ((a & 0b11111100) == 0b11100000) {
+    } else if ((a & 0b1111'1100) == 0b1110'0000) {
         decode_ip_inc(program, start, i, 0b11, lookup<loop_instructions>);
     } else if ((a & ~1) == (u8)~1) {
         decode_rm(program, start, i); // PUSH or INC or DEC
-    } else if ((a & 0b11111000) == 0b01010000) {
+    } else if ((a & 0b1111'1000) == 0b0101'0000) {
         decode_push_pop_register(program, start, i, false); // PUSH
-    } else if ((a & 0b11100111) == 0b110) {
+    } else if ((a & 0b111'00111) == 0b110) {
         decode_push_pop_segment_register(program, start, i, false); // PUSH
-    } else if (a == 0b10001111) {
+    } else if (a == 0b1000'1111) {
         decode_rm(program, start, i); // POP
-    } else if ((a & 0b11111000) == 0b01011000) {
+    } else if ((a & 0b1111'1000) == 0b0101'1000) {
         decode_push_pop_register(program, start, i, true); // POP
-    } else if ((a & 0b11100111) == 0b111) {
+    } else if ((a & 0b1110'0111) == 0b111) {
         decode_push_pop_segment_register(program, start, i, true); // POP
-    } else if ((a & ~1) == 0b10000110) {
+    } else if ((a & ~1) == 0b1000'0110) {
         decode_rm_register(program, start, i, Xchg);
-    } else if ((a & 0b11111000) == 0b10010000) {
+    } else if ((a & 0b1111'1000) == 0b1001'0000) {
         decode_xchg_register_accumulator(program, start, i);
-    } else if ((a & 0b11110110) == 0b11100100) {
+    } else if ((a & 0b1111'0110) == 0b1110'0100) {
         decode_in_out(program, start, i, In);
-    } else if ((a & 0b11110110) == 0b11100110) {
+    } else if ((a & 0b1111'0110) == 0b1110'0110) {
         decode_in_out(program, start, i, Out);
-    } else if (a == 0b11010111) {
+    } else if (a == 0b1101'0111) {
         i.type = Xlat;
-    } else if (a == 0b10001101) {
+    } else if (a == 0b1000'1101) {
         decode_rm_register(program, start, i, Lea);
-    } else if (a == 0b11000101) {
+    } else if (a == 0b1100'0101) {
         decode_rm_register(program, start, i, Lds);
-    } else if (a == 0b11000100) {
+    } else if (a == 0b1100'0100) {
         decode_rm_register(program, start, i, Les);
-    } else if (a == 0b10011111) {
+    } else if (a == 0b1001'1111) {
         i.type = Lahf;
-    } else if (a == 0b10011110) {
+    } else if (a == 0b1001'1110) {
         i.type = Sahf;
-    } else if (a == 0b10011100) {
+    } else if (a == 0b1001'1100) {
         i.type = Pushf;
-    } else if (a == 0b10011101) {
+    } else if (a == 0b1001'1101) {
         i.type = Popf;
-    } else if ((a & 0b11110000) == 0b01000000) {
+    } else if ((a & 0b1111'0000) == 0b0100'0000) {
         decode_inc_dec_register(program, start, i);
-    } else if (a == 0b00110111) {
+    } else if (a == 0b0011'0111) {
         i.type = Aaa;
-    } else if (a == 0b00100111) {
+    } else if (a == 0b0010'0111) {
         i.type = Daa;
-    } else if ((a & ~1) == 0b11110110) {
+    } else if ((a & ~1) == 0b1111'0110) {
         decode_rm(program, start, i); // Lookup from operations_2
-    } else if (a == 0b00111111) {
+    } else if (a == 0b0011'1111) {
         i.type = Aas;
-    } else if (a == 0b00101111) {
+    } else if (a == 0b0010'1111) {
         i.type = Das;
-    } else if ((a & ~1) == 0b11010100) {
+    } else if ((a & ~1) == 0b1101'0100) {
         decode_aam_aad(program, start, i);
-    } else if (a == 0b10011000) {
+    } else if (a == 0b1001'1000) {
         i.type = Cbw;
-    } else if (a == 0b10011001) {
+    } else if (a == 0b1001'1001) {
         i.type = Cwd;
-    } else if ((a & 0b11111100) == 0b11010000) {
+    } else if ((a & 0b1111'1100) == 0b1101'0000) {
         decode_rm(program, start, i); // Shift operator
-    } else if ((a & ~0b11) == 0b10000100) {
+    } else if ((a & ~0b11) == 0b1000'0100) {
         decode_rm_register(program, start, i, Test);
-    } else if ((a & ~1) == 0b10101000) {
+    } else if ((a & ~1) == 0b1010'1000) {
         decode_immediate_to_accumulator(program, start, i, Test);
-    } else if ((a & ~1) == 0b11110010) {
-        i.flags |= Instruction::Rep;
-        if (~a & 1) i.flags |= Instruction::RepNz;
+    } else if ((a & ~1) == 0b1111'0010) {
+        i.flags.rep = true;
+        i.flags.rep_nz = ~a & 1;
 
-        if (start + 1 < program.size && (program.data[start + 1] & ~0b1111) == 0b10100000) {
+        if (start + 1 < program.size && (program.data[start + 1] & ~0b1111) == 0b1010'0000) {
             decode_string_instruction(program, start + 1, i);
         }
-    } else if ((a & ~0b1111) == 0b10100000) {
+    } else if ((a & ~0b1111) == 0b1010'0000) {
         decode_string_instruction(program, start, i);
     } else {
         fprintf(stderr, "Unimplemented opcode 0x%X\n", a);
@@ -518,7 +518,7 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
             break;
         case Memory:
             if (operand_index == 0 && (oo.type == None || oo.type == Immediate || is_shift(i))) {
-                fprintf(out, "%s ", i.flags & Instruction::Wide ? "word" : "byte");
+                fprintf(out, "%s ", i.flags.wide ? "word" : "byte");
             }
             if (o.memory.eac == EffectiveAddressCalculation::DirectAccess) {
                 fprintf(out, "[%d]", o.memory.displacement);
@@ -531,7 +531,7 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
             fprintf(out, "]");
             break;
         case Immediate:
-            if (i.flags & Instruction::IpInc) {
+            if (i.flags.ip_inc) {
                 fprintf(out, "$%c%d", o.immediate < 0 ? '-' : '+', abs(o.immediate));
                 break;
             }
@@ -543,14 +543,14 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
 void output_instruction_assembly(FILE* out, const Instruction& i) {
     if (i.type == None) return;
 
-    if (i.flags & Instruction::Rep) {
-        if (i.flags & Instruction::RepNz) fprintf(out, "repnz ");
+    if (i.flags.rep) {
+        if (i.flags.rep_nz) fprintf(out, "repnz ");
         else fprintf(out, "rep ");
     }
 
     fprintf(out, "%s", lookup_instruction_type(i));
 
-    if (is_string_manipulation(i)) fprintf(out, "%c", i.flags & Instruction::Wide ? 'w' : 'b');
+    if (is_string_manipulation(i)) fprintf(out, "%c", i.flags.wide ? 'w' : 'b');
 
     if (i.operands[0].type != Operand::Type::None) {
         fprintf(out, " ");
