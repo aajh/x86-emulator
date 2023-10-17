@@ -50,6 +50,11 @@ static constexpr std::array loop_instructions = {
     Loopnz, Loopz, Loop, Jcxz,
 };
 
+static constexpr std::array processor_control_instructions = {
+    Clc, Stc, Cli, Sti,
+    Cld, Std, None, None,
+};
+
 typedef Instruction::Type (*lookup_function)(u8);
 
 template<const auto& array>
@@ -429,6 +434,18 @@ static void decode_ret(const Program& program, u32 start, Instruction& i) {
     if (has_data) i.operands[0] = data;
 }
 
+static void decode_int(const Program& program, u32 start, Instruction& i) {
+    u8 a = program.data[start];
+    bool has_data = a & 1;
+
+    u16 data = 0;
+    if (has_data && read_data(program, start + 1, false, data)) return;
+
+    i.size = has_data ? 2 : 1;
+    i.type = has_data ? Int : Int3;
+    if (has_data) i.operands[0] = data;
+}
+
 Instruction decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
@@ -437,6 +454,7 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     i.address = start;
     i.size = 1;
 
+read_after_lock:
     u8 a = program.data[start];
     if ((a & 0b1111'1100) == 0b1000'1000) {
         decode_rm_register(program, start, i, Mov);
@@ -524,9 +542,31 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
         decode_string_instruction(program, start, i);
     } else if ((a & ~0b1001) == 0b1100'0010) {
         decode_ret(program, start, i);
+    } else if ((a & ~1) == 0b1100'1100) {
+        decode_int(program, start, i);
+    } else if (a == 0b1100'1110) {
+        i.type = Into;
+    } else if (a == 0b1100'1111) {
+        i.type = Iret;
+    } else if ((a & 0b1111'1000) == 0b1111'1000) {
+        i.type = lookup<processor_control_instructions>(a & 0b111);
+    } else if (a == 0b1111'0101) {
+        i.type = Cmc;
+    } else if (a == 0b1111'0100) {
+        i.type = Hlt;
+    } else if (a == 0b1001'1011) {
+        i.type = Wait;
+    } else if (a == 0b1111'0000) {
+        i.flags.lock = true;
+        if (start + 1 < program.size) {
+            ++start;
+            goto read_after_lock;
+        }
     } else {
         fprintf(stderr, "Unimplemented opcode 0x%X\n", a);
     }
+
+    if (i.address != start) i.size += start - i.address;
 
     return i;
 }
@@ -573,6 +613,9 @@ void output_instruction_assembly(FILE* out, const Instruction& i) {
     if (i.flags.rep) {
         if (i.flags.rep_nz) fprintf(out, "repnz ");
         else fprintf(out, "rep ");
+    }
+    if (i.flags.lock) {
+        fprintf(out, "lock ");
     }
 
     fprintf(out, "%s", lookup_instruction_type(i));

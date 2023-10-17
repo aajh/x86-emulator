@@ -128,8 +128,12 @@ struct Instruction {
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
 
         Loopnz, Loopz, Loop, Jcxz,
+
+        Int, Int3, Into, Iret,
+
+        Clc, Cmc, Stc, Cld, Std, Cli, Sti, Hlt, Wait,
     };
-    static constexpr auto instruction_count = static_cast<size_t>(Type::Jcxz) + 1;
+    static constexpr auto instruction_count = static_cast<size_t>(Type::Wait) + 1;
     static constexpr std::array instruction_type_names = {
         "UNKNOWN_INSTRUCTION",
 
@@ -157,6 +161,10 @@ struct Instruction {
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",
 
         "loopnz", "loopz", "loop", "jcxz",
+
+        "int", "int3", "into", "iret",
+
+        "clc", "cmc", "stc", "cld", "std", "cli", "sti", "hlt", "wait",
     };
     static_assert(instruction_type_names.size() == instruction_count);
 
@@ -166,6 +174,7 @@ struct Instruction {
         bool rep : 1;
         bool rep_nz : 1;
         bool intersegment : 1;
+        bool lock : 1;
 
         auto& value() {
             using int_type = u8;
