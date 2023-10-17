@@ -26,6 +26,11 @@ static constexpr std::array operations_2 = {
     Mul, Imul, Div, Idiv,
 };
 
+static constexpr std::array operations_3 = {
+    None, None, Call, None,
+    Jmp, None, Push, None,
+};
+
 static constexpr std::array shift_operations = {
     Rol, Ror, Rcl, Rcr,
     Shl, Shr, None, Sar,
@@ -88,12 +93,13 @@ static constexpr EffectiveAddressCalculation lookup_effective_address_calculatio
     return false;
 }
 
-[[nodiscard]] static bool read_data(const Program& program, u32 start, bool wide, u16& result) {
+template<typename T>
+[[nodiscard]] static bool read_data(const Program& program, u32 start, bool wide, T& result) {
     if (start + wide >= program.size) return true;
 
     u8 data_lo = program.data[start];
     u8 data_hi = wide ? program.data[start + 1] : 0;
-    result = data_lo | (data_hi << 8);
+    result = (T)(data_lo | (data_hi << 8));
 
     return false;
 }
@@ -262,10 +268,10 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     u8 op = (b & 0b0011'1000) >> 3;
 
     auto type = None;
-    if (a == 0xff &&  op == 0b110) type = Push;
-    else if (a == 0b1000'1111 && op == 0) type = Pop;
+    if (a == 0b1000'1111 && op == 0) type = Pop;
     else if ((a & ~1) == (u8)~1 && op == 0) type = Inc;
     else if ((a & ~1) == (u8)~1 && op == 1) type = Dec;
+    else if (a == 0xff) type = lookup<operations_3>(op);
     else if ((a & ~1) == 0b1111'0110) type = lookup<operations_2>(op);
     else if (is_shift) type = lookup<shift_operations>(op);
 
@@ -391,12 +397,36 @@ static void decode_aam_aad(const Program& program, u32 start, Instruction& i) {
 
 static void decode_string_instruction(const Program& program, u32 start, Instruction& i) {
     u8 a = program.data[start];
+    if ((a & ~0b1111) != 0b1010'0000) return;
+
     u8 op = (a & 0b1110) >> 1;
     bool w = a & 1;
 
     i.size = 1 + i.flags.rep;
     i.type = lookup<string_instructions>(op);
     i.flags.wide = w;
+}
+
+static void decode_rep(const Program& program, u32 start, Instruction& i) {
+    u8 a = program.data[start];
+    i.flags.rep = true;
+    i.flags.rep_nz = ~a & 1;
+
+    if (start + 1 < program.size) decode_string_instruction(program, start + 1, i);
+}
+
+static void decode_ret(const Program& program, u32 start, Instruction& i) {
+    u8 a = program.data[start];
+    bool has_data = !(a & 1);
+    bool intersegment = a & 0b1000;
+
+    i16 data = 0;
+    if (has_data && read_data(program, start + 1, true, data)) return;
+
+    i.size = has_data ? 3 : 1;
+    i.type = Ret;
+    i.flags.intersegment = intersegment;
+    if (has_data) i.operands[0] = data;
 }
 
 Instruction decode_instruction_at(const Program& program, u32 start) {
@@ -489,14 +519,11 @@ Instruction decode_instruction_at(const Program& program, u32 start) {
     } else if ((a & ~1) == 0b1010'1000) {
         decode_immediate_to_accumulator(program, start, i, Test);
     } else if ((a & ~1) == 0b1111'0010) {
-        i.flags.rep = true;
-        i.flags.rep_nz = ~a & 1;
-
-        if (start + 1 < program.size && (program.data[start + 1] & ~0b1111) == 0b1010'0000) {
-            decode_string_instruction(program, start + 1, i);
-        }
+        decode_rep(program, start, i);
     } else if ((a & ~0b1111) == 0b1010'0000) {
         decode_string_instruction(program, start, i);
+    } else if ((a & ~0b1001) == 0b1100'0010) {
+        decode_ret(program, start, i);
     } else {
         fprintf(stderr, "Unimplemented opcode 0x%X\n", a);
     }

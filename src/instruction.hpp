@@ -122,6 +122,8 @@ struct Instruction {
 
         Movs, Cmps, Scas, Lods, Stos,
 
+        Call, Jmp, Ret,
+
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
 
@@ -149,6 +151,8 @@ struct Instruction {
 
         "movs", "cmps", "scas", "lods", "stos",
 
+        "call", "jmp", "ret",
+
         "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",
 
@@ -161,6 +165,7 @@ struct Instruction {
         bool ip_inc : 1;
         bool rep : 1;
         bool rep_nz : 1;
+        bool intersegment : 1;
 
         auto& value() {
             using int_type = u8;
