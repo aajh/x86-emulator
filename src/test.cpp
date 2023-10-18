@@ -19,7 +19,7 @@ static error_code test_disassembler(const char* filename) {
     RET_BARE_ERRNO(disassembled_file == nullptr);
     DEFER { fclose(disassembled_file); };
 
-    printf("\nDisassembling %s to %s\n", filename, disassembled_filename.data());
+    printf("Disassembling %s to %s\n", filename, disassembled_filename.data());
     RET_IF(disassemble_program(disassembled_file, program));
     fflush(disassembled_file);
 
@@ -57,6 +57,21 @@ static error_code test_disassembler(const char* filename) {
         if (program.data[i] != reassembled_program.data[i]) {
             fflush(stdout);
             fprintf(stderr, "Reassembled program differs at position %zu (0x%X, original 0x%X)\n", i, reassembled_program.data[i], program.data[i]);
+
+            fprintf(stderr, "Reassembled bytes around the location are:");
+            for (i32 j = -5; j < 6; ++j) {
+                if (i + j < 0 || i + j >= reassembled_program.size) continue;
+                fprintf(stderr, " 0x%X", reassembled_program.data[i + j]);
+            }
+            fprintf(stderr, "\n");
+
+            fprintf(stderr, "Original bytes around the location are:   ");
+            for (i32 j = -5; j < 6; ++j) {
+                if (i + j < 0 || i + j >= program.size) continue;
+                fprintf(stderr, " 0x%X", program.data[i + j]);
+            }
+            fprintf(stderr, "\n");
+
             return Errc::ReassemblyFailed;
         }
     }
@@ -64,8 +79,32 @@ static error_code test_disassembler(const char* filename) {
     return {};
 }
 
-static const char test_prefix[] = "../computer_enhance/perfaware/";
+static error_code assemble_and_test_disassembler(const char* filename) {
+    std::string assembled_filename = "/tmp/x86-sim_nasm.out.XXXXXX";
+    auto assembled_fd = mkstemp(assembled_filename.data());
+    RET_BARE_ERRNO(assembled_fd == -1);
+    DEFER { close(assembled_fd); unlink(assembled_filename.data()); };
+
+    printf("Assembling %s to %s\n", filename, assembled_filename.data());
+    {
+        std::string command = "nasm -o ";
+        command += assembled_filename;
+        command += " ";
+        command += filename;
+
+        if (system(command.data())) return Errc::ReassemblyError;
+    }
+
+    return test_disassembler(assembled_filename.data());
+}
+
+static const char test_prefix[] = "../tests/";
 static constexpr std::array tests = {
+    "direct_jmp_call_within_segment.asm",
+};
+
+static const char ce_test_prefix[] = "../computer_enhance/perfaware/";
+static constexpr std::array ce_tests = {
     "part1/listing_0040_challenge_movs",
     "part1/listing_0041_add_sub_cmp_jnz",
     "part1/listing_0042_completionist_decode",
@@ -76,6 +115,13 @@ static error_code run_tests() {
     for (auto test : tests) {
         filename = test_prefix;
         filename += test;
+        printf("\n");
+        RET_IF(assemble_and_test_disassembler(filename.data()));
+    }
+    for (auto test : ce_tests) {
+        filename = ce_test_prefix;
+        filename += test;
+        printf("\n");
         RET_IF(test_disassembler(filename.data()));
     }
     return {};

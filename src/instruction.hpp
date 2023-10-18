@@ -176,6 +176,7 @@ struct Instruction {
         bool rep_nz : 1;
         bool intersegment : 1;
         bool lock : 1;
+        bool short_jmp : 1;
 
         auto& value() {
             using int_type = u8;

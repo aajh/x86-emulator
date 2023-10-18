@@ -131,6 +131,7 @@ static void decode_rm_register(const Program& program, u32 start, Instruction& i
             if (is_direct_address) {
                 i.operands[0] = looked_reg;
                 i.operands[1] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
+                if (type == Xchg) swap(i.operands[0], i.operands[1]);
             } else {
                 i.operands[0] = MemoryOperand{eac};
                 i.operands[1] = looked_reg;
@@ -456,14 +457,17 @@ static void decode_direct_intersegment_call_jmp(const Program& program, u32 star
 static void decode_direct_call_jmp(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
     u8 a = program.data[start];
     bool short_ip_inc = a & 0b10;
+    u32 size = short_ip_inc ? 2 : 3;
 
-    // TODO: Check this (doesn't match asm file)
     i16 ip_inc = 0;
     if (read_displacement(program, start + 1, short_ip_inc ? 1 : 2, true, ip_inc)) return;
 
-    i.size = short_ip_inc ? 2 : 3;
+    i32 adjusted_ip_inc = ip_inc + start + size;
+
+    i.size = size;
     i.type = type;
-    i.operands[0] = ip_inc;
+    i.flags.short_jmp = short_ip_inc;
+    i.operands[0] = adjusted_ip_inc;
 }
 
 static void decode_ret(const Program& program, u32 start, Instruction& i) {
@@ -716,6 +720,9 @@ void output_instruction_assembly(FILE* out, const Instruction& i) {
         } else if ((i.type == Call || i.type == Jmp) && i.operands[1].type == Operand::Type::None) {
             fprintf(out, " far");
         }
+    }
+    if (i.flags.short_jmp) {
+        fprintf(out, " short");
     }
 
     if (is_string_manipulation(i)) fprintf(out, "%c", i.flags.wide ? 'w' : 'b');
