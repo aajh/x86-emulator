@@ -1,20 +1,21 @@
 #include "instruction.hpp"
+#include <limits>
 
 #include "program.hpp"
+
+using enum Instruction::Type;
 
 #define COMMON_MOD_RM_DEFINITIONS\
     u8 mod = (b & 0b1100'0000) >> 6;\
     u8 rm = b & 0b111;\
-    bool is_direct_address = mod == 0 && rm == 0b110;\
+    bool is_direct_access = mod == 0 && rm == 0b110;\
     auto eac = lookup_effective_address_calculation(rm);\
     u8 displacement_bytes = mod == 3 ? 0 : mod;\
-    if (is_direct_address) {\
+    if (is_direct_access) {\
         displacement_bytes = 2;\
     }\
     i16 displacement = 0;\
-    if (read_displacement(program, start + 2, displacement_bytes, s, displacement)) return;
-
-using enum Instruction::Type;
+    if (read_data(program, start + 2, displacement_bytes, s, displacement)) return;
 
 static constexpr std::array operations_1 = {
     Add, Or, Adc, Sbb,
@@ -59,6 +60,7 @@ typedef Instruction::Type (*lookup_function)(u8);
 
 template<const auto& array>
 static constexpr Instruction::Type lookup(u8 i) {
+    static_assert(std::size(array) <= std::numeric_limits<decltype(i)>::max());
     if (i >= std::size(array)) return None;
     return array[i];
 }
@@ -78,32 +80,26 @@ static constexpr EffectiveAddressCalculation lookup_effective_address_calculatio
     return static_cast<EffectiveAddressCalculation>(rm);
 }
 
-[[nodiscard]] static bool read_displacement(const Program& program, u32 start, u8 displacement_bytes, bool sign_extension_8_bit, i16& result) {
+template<typename T>
+[[nodiscard]] static bool read_data(const Program& program, u32 start, u32 displacement_bytes, bool sign_extension_8_bit, T& result) {
     assert(displacement_bytes <= 2);
-    if (!displacement_bytes) return false;
     if (start + displacement_bytes > program.size) return true;
 
-    u8 displacement_lo = program.data[start];
+    u8 displacement_lo = displacement_bytes >= 1 ? program.data[start] : 0;
     u8 displacement_hi = displacement_bytes == 2 ? program.data[start + 1] : 0;
 
     if (displacement_bytes == 2) {
-        result = (i16)(displacement_lo | (displacement_hi << 8));
+        result = (T)(displacement_lo | (displacement_hi << 8));
     } else {
-        result = sign_extension_8_bit ? (i8)displacement_lo : displacement_lo;
+        result = (T)(sign_extension_8_bit ? (i8)displacement_lo : displacement_lo);
     }
 
     return false;
 }
 
 template<typename T>
-[[nodiscard]] static bool read_data(const Program& program, u32 start, bool wide, T& result) {
-    if (start + wide >= program.size) return true;
-
-    u8 data_lo = program.data[start];
-    u8 data_hi = wide ? program.data[start + 1] : 0;
-    result = (T)(data_lo | (data_hi << 8));
-
-    return false;
+[[nodiscard]] static bool read_data(const Program& program, u32 start, bool wide_data, T& result) {
+    return read_data(program, start, wide_data + 1, false, result);
 }
 
 static void decode_rm_register(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
@@ -128,16 +124,13 @@ static void decode_rm_register(const Program& program, u32 start, Instruction& i
 
     switch (mod) {
         case 0:
-            if (is_direct_address) {
+            if (is_direct_access) {
                 i.operands[0] = looked_reg;
                 i.operands[1] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
-                if (type == Xchg) swap(i.operands[0], i.operands[1]);
+                if (type == Xchg) i.swap_operands();
             } else {
                 i.operands[0] = MemoryOperand{eac};
                 i.operands[1] = looked_reg;
-                if (d) {
-                    swap(i.operands[0], i.operands[1]);
-                }
             }
             break;
         case 1:
@@ -148,20 +141,14 @@ static void decode_rm_register(const Program& program, u32 start, Instruction& i
                 i.operands[0] = MemoryOperand{eac};
             }
             i.operands[1] = looked_reg;
-            if (d) {
-                swap(i.operands[0], i.operands[1]);
-            }
             break;
         case 3:
             i.operands[0] = lookup_register(w, rm);
             i.operands[1] = looked_reg;
-            if (d) {
-                swap(i.operands[0], i.operands[1]);
-            }
             break;
-        default:
-            assert(false);
     }
+
+    if (!is_direct_access && d) i.swap_operands();
 }
 
 static void decode_immediate_to_rm(const Program& program, u32 start, Instruction& i, bool is_mov) {
@@ -188,7 +175,7 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
 
     if (mod == 3) {
         i.operands[0] = lookup_register(w, rm);
-    } else if (is_direct_address) {
+    } else if (is_direct_access) {
         i.operands[0] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
     } else {
         i.operands[0] = MemoryOperand{eac, displacement};
@@ -217,7 +204,7 @@ static void decode_mov_memory_accumulator(const Program& program, u32 start, Ins
     u8 a = program.data[start];
     bool w = a & 1;
     i16 address = 0;
-    if (read_displacement(program, start + 1, w + 1, true, address)) return;
+    if (read_data(program, start + 1, w + 1, true, address)) return;
 
     i.size = w ? 3 : 2;
     i.type = Mov;
@@ -226,7 +213,7 @@ static void decode_mov_memory_accumulator(const Program& program, u32 start, Ins
     i.operands[0] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, address};
     i.operands[1] = w ? Register::ax : Register::al;
 
-    if (to_accumulator) swap(i.operands[0], i.operands[1]);
+    if (to_accumulator) i.swap_operands();
 }
 
 static void decode_mov_rm_segment_register(const Program& program, u32 start, Instruction& i) {
@@ -247,7 +234,7 @@ static void decode_mov_rm_segment_register(const Program& program, u32 start, In
 
     if (mod == 3) {
         i.operands[0] = lookup_register(true, rm);
-    } else if (is_direct_address) {
+    } else if (is_direct_access) {
         i.operands[0] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
     } else {
         i.operands[0] = MemoryOperand{eac, displacement};
@@ -255,7 +242,7 @@ static void decode_mov_rm_segment_register(const Program& program, u32 start, In
 
     i.operands[1] = lookup_segment_register(segment_reg);
 
-    if (to_segment_register) swap(i.operands[0], i.operands[1]);
+    if (to_segment_register) i.swap_operands();
 }
 
 static void decode_immediate_to_accumulator(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
@@ -308,7 +295,9 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     else if (is_shift) type = lookup<shift_operations>(op);
 
     if (type == None) {
-        fprintf(stderr, "decode_rm: unimplemented instruction 0x%X 0x%X\n", a, b);
+#ifndef NDEBUG
+        fprintf(stderr, "decode_rm: unknown instruction 0x%X 0x%X\n", a, b);
+#endif
         return;
     }
 
@@ -329,7 +318,7 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
 
     if (mod == 3) {
         i.operands[0] = lookup_register(w, rm);
-    } else if (is_direct_address) {
+    } else if (is_direct_access) {
         i.operands[0] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
     } else {
         i.operands[0] = MemoryOperand{eac, displacement};
@@ -396,7 +385,7 @@ static void decode_in_out(const Program& program, u32 start, Instruction& i, Ins
         i.operands[1] = Register::dx;
     }
 
-    if (type == Out) swap(i.operands[0], i.operands[1]);
+    if (type == Out) i.swap_operands();
 }
 
 static void decode_inc_dec_register(const Program& program, u32 start, Instruction& i) {
@@ -460,7 +449,7 @@ static void decode_direct_call_jmp(const Program& program, u32 start, Instructio
     u32 size = short_ip_inc ? 2 : 3;
 
     i16 ip_inc = 0;
-    if (read_displacement(program, start + 1, short_ip_inc ? 1 : 2, true, ip_inc)) return;
+    if (read_data(program, start + 1, short_ip_inc ? 1 : 2, true, ip_inc)) return;
 
     i32 adjusted_ip_inc = ip_inc + start + size;
 
@@ -512,14 +501,14 @@ static void decode_esc(const Program& program, u32 start, Instruction& i) {
 
     if (mod == 3) {
         i.operands[1] = lookup_register(true, rm);
-    } else if (is_direct_address) {
+    } else if (is_direct_access) {
         i.operands[1] = MemoryOperand{EffectiveAddressCalculation::DirectAccess, displacement};
     } else {
         i.operands[1] = MemoryOperand{eac, displacement};
     }
 }
 
-Instruction decode_instruction_at(const Program& program, u32 start) {
+std::optional<Instruction> decode_instruction_at(const Program& program, u32 start) {
     assert(program.size && program.data);
     assert(start < program.size);
 
@@ -654,11 +643,14 @@ read_after_prefix:
             goto read_after_prefix;
         }
     } else {
-        fprintf(stderr, "Unimplemented opcode 0x%X\n", a);
+#ifndef NDEBUG
+        fprintf(stderr, "decode_instruction_at: unknown instruction 0x%X\n", a);
+#endif
     }
 
     if (i.address != start) i.size += start - i.address;
 
+    if (i.type == None) return {};
     return i;
 }
 
@@ -675,7 +667,7 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
             fprintf(out, "%s", lookup_register(o.reg));
             break;
         case Memory:
-            if (operand_index == 0 && (oo.type == None || oo.type == Immediate || is_shift(i)) && (i.type != Call && i.type != Jmp)) {
+            if (operand_index == 0 && (oo.type == None || oo.type == Immediate || i.is_shift()) && (i.type != Call && i.type != Jmp)) {
                 fprintf(out, "%s ", i.flags.wide ? "word" : "byte");
             }
             if (i.segment_override) {
@@ -704,15 +696,10 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
 void output_instruction_assembly(FILE* out, const Instruction& i) {
     if (i.type == None) return;
 
-    if (i.flags.rep) {
-        if (i.flags.rep_nz) fprintf(out, "repnz ");
-        else fprintf(out, "rep ");
-    }
-    if (i.flags.lock) {
-        fprintf(out, "lock ");
-    }
+    if (i.flags.rep) fprintf(out, i.flags.rep_nz ? "repnz " : "rep ");
+    if (i.flags.lock) fprintf(out, "lock ");
 
-    fprintf(out, "%s", lookup_instruction_type(i));
+    fprintf(out, "%s", i.name());
 
     if (i.flags.intersegment) {
         if (i.type == Ret) {
@@ -721,11 +708,8 @@ void output_instruction_assembly(FILE* out, const Instruction& i) {
             fprintf(out, " far");
         }
     }
-    if (i.flags.short_jmp) {
-        fprintf(out, " short");
-    }
-
-    if (is_string_manipulation(i)) fprintf(out, "%c", i.flags.wide ? 'w' : 'b');
+    if (i.flags.short_jmp) fprintf(out, " short");
+    if (i.is_string_manipulation()) fprintf(out, "%c", i.flags.wide ? 'w' : 'b');
 
     if (i.operands[0].type != Operand::Type::None) {
         fprintf(out, " ");

@@ -63,6 +63,13 @@ template <class F> deferrer<F> operator*(defer_dummy, F f) { return {f}; }
 #define UNWRAP_BARE_IMPL(v, e, LINE) UNWRAP_BASE_IMPL(v, e, LINE, , )
 #define UNWRAP_BARE(variable_decl, expression) UNWRAP_BARE_IMPL(variable_decl, expression, __LINE__)
 
+#define UNWRAP_OR_IMPL_(variable_decl, expression, LINE)\
+    auto UNWRAP_WRAPPED_VAR(LINE) = expression;\
+    variable_decl = std::move(*UNWRAP_WRAPPED_VAR(LINE));\
+    if (!UNWRAP_WRAPPED_VAR(LINE))
+#define UNWRAP_OR_IMPL(v, e, LINE) UNWRAP_OR_IMPL_(v, e, LINE)
+#define UNWRAP_OR(variable_decl, expression) UNWRAP_OR_IMPL(variable_decl, expression, __LINE__)
+
 static inline error_code make_error_code_errno(int errno_value = errno) {
     return std::make_error_code(std::errc(errno_value));
 }

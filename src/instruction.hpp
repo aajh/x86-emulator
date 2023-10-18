@@ -3,6 +3,7 @@
 #include "common.hpp"
 #include <cstdio>
 #include <optional>
+#include <type_traits>
 
 enum class Register : u32 {
     ax, cx, dx, bx,
@@ -196,28 +197,36 @@ struct Instruction {
     std::optional<Register> segment_override;
 
     std::array<Operand, 2> operands = {};
-};
 
-static constexpr const char* lookup_instruction_type(Instruction::Type type) {
-    auto i = static_cast<u32>(type);
-    assert(i < std::size(Instruction::instruction_type_names));
-    return Instruction::instruction_type_names[i];
-}
-static constexpr const char* lookup_instruction_type(const Instruction& i) {
-    return lookup_instruction_type(i.type);
-}
-static constexpr bool is_shift(const Instruction& i) {
-    using enum Instruction::Type;
-    auto t = static_cast<size_t>(i.type);
-    return static_cast<size_t>(Shl) <= t && t <= static_cast<size_t>(Rcr);
-}
-static constexpr bool is_string_manipulation(const Instruction& i) {
-    using enum Instruction::Type;
-    auto t = static_cast<size_t>(i.type);
-    return static_cast<size_t>(Movs) <= t && t <= static_cast<size_t>(Stos);
-}
+
+    static constexpr const char* lookup_type(Type type) {
+        auto i = static_cast<std::underlying_type_t<Type>>(type);
+        assert(i < std::size(instruction_type_names));
+        return instruction_type_names[i];
+    }
+
+    const char* name() const {
+        return lookup_type(type);
+    }
+
+    bool is_shift() const {
+        using T = std::underlying_type_t<Type>;
+        auto t = static_cast<T>(type);
+        return static_cast<T>(Type::Shl) <= t && t <= static_cast<T>(Type::Rcr);
+    }
+
+    bool is_string_manipulation() const {
+        using T = std::underlying_type_t<Type>;
+        auto t = static_cast<T>(type);
+        return static_cast<T>(Type::Movs) <= t && t <= static_cast<T>(Type::Stos);
+    }
+
+    void swap_operands() {
+        swap(operands[0], operands[1]);
+    }
+};
 
 struct Program;
 
-Instruction decode_instruction_at(const Program& program, u32 start);
+std::optional<Instruction> decode_instruction_at(const Program& program, u32 start);
 void output_instruction_assembly(FILE* out, const Instruction& instruction);

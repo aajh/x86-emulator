@@ -4,8 +4,11 @@ project(ComputerEnhanceExercises)
 
 add_library(exercise_compiler_flags INTERFACE)
 target_compile_features(exercise_compiler_flags INTERFACE cxx_std_20)
-target_compile_options(exercise_compiler_flags INTERFACE "-fno-exceptions;-Wall;-Wextra;-Wpedantic;-fsanitize=address,undefined")
-target_link_options(exercise_compiler_flags INTERFACE "-fsanitize=address,undefined")
+target_compile_options(exercise_compiler_flags INTERFACE "-fno-exceptions;-Wall;-Wextra;-Wpedantic;")
+if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    target_compile_options(exercise_compiler_flags INTERFACE "-fsanitize=address,undefined")
+    target_link_options(exercise_compiler_flags INTERFACE "-fsanitize=address,undefined")
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

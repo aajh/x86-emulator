@@ -43,8 +43,7 @@ error_code disassemble_program(FILE* out, const Program& program, const char* fi
 
     u32 i = 0;
     while (i < program.size) {
-        auto instruction = decode_instruction_at(program, i);
-        if (instruction.type == Instruction::Type::None) {
+        UNWRAP_OR(auto instruction, decode_instruction_at(program, i)) {
             fflush(stdout);
             fprintf(stderr, "Unknown instruction at location %u (first byte 0x%X)\n", i, program.data[i]);
             return Errc::UnknownInstruction;
