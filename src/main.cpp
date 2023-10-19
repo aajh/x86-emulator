@@ -32,7 +32,6 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Error while reading file %s: %s\n", filename, x86.error().message().data());
             return EXIT_FAILURE;
         }
-        x86->test_set_get(); // TODO: Move to test
         if (auto e = x86->simulate()) {
             fprintf(stderr, "Error while simulating file %s: %s\n", filename, e.message().data());
             return EXIT_FAILURE;

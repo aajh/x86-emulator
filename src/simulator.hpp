@@ -8,6 +8,7 @@
 class Intel8086 {
     using enum Register;
 public:
+    Intel8086() = default;
     Intel8086(Intel8086&& o) : registers(o.registers), ip(o.ip), program(o.program) {
         o.program = {};
     }
@@ -68,11 +69,13 @@ public:
         }
     }
 
-    void print_registers() const;
-    error_code simulate();
+    void print_registers(FILE* out = stdout) const;
+    error_code simulate(FILE* out = stdout);
 
-    void test_assert(u16 a, i16 b, u8 c, i8 d, u8 e, i8 f, bool print) const;
+#ifdef TESTING
+    void assert_registers(u16 a, i16 b, u8 c, i8 d, u8 e, i8 f, bool print) const;
     void test_set_get(bool print = false);
+#endif
 
 private:
     std::array<u16, 12> registers = {};

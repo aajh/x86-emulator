@@ -16,6 +16,12 @@ namespace {
                     return "reassembly error";
                 case ReassemblyFailed:
                     return "reassembly failed";
+                case InvalidOutputFile:
+                    return "invalid output file";
+                case InvalidExpectedOutputFile:
+                    return "invalid expected output file";
+                case SimulatingError:
+                    return "simulating error";
             }
             return "(unrecognized error)";
         };

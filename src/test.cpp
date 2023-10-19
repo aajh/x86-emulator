@@ -2,12 +2,57 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <string_view>
 #include <unistd.h>
 
 #include "program.hpp"
+#include "simulator.hpp"
 
-static error_code test_disassembler(const char* filename) {
-    UNWRAP_BARE(auto program, read_program(filename));
+static expected<std::string, error_code> read_file(const std::string& filename) {
+    auto file = fopen(filename.data(), "rb");
+    RET_ERRNO(file == nullptr);
+
+    RET_ERRNO(fseek(file, 0, SEEK_END));
+
+    const auto ftell_result = ftell(file);
+    RET_ERRNO(ftell_result < 0);
+    const size_t size = ftell_result;
+
+    RET_ERRNO(fseek(file, 0, SEEK_SET));
+
+    std::string content(size, '\0');
+    if (fread(content.data(), 1, content.size(), file) != content.size()) {
+        if (feof(file)) return unexpected(Errc::EndOfFile);
+        return make_unexpected_errno();
+    }
+
+    return content;
+}
+
+struct ReadLineResult {
+    std::string_view s;
+    size_t length;
+};
+static ReadLineResult read_line(const std::string_view& string, bool skip_whitespace = false) {
+    if (string.size() == 0) return {};
+
+    auto start = string.find_first_not_of(skip_whitespace ? "\r\n\t\v " : "\r\n");
+    if (start == std::string::npos) return { {}, string.size() };
+
+    auto line_end_i = string.find_first_of("\r\n", start);
+    if (line_end_i == std::string::npos) return {
+        { string.data() + start, string.size() - start },
+        string.size(),
+    };
+
+    return {
+        { string.data() + start, line_end_i - start },
+        line_end_i,
+    };
+}
+
+static error_code test_disassembler(const std::string& filename) {
+    UNWRAP_BARE(auto program, read_program(filename.data()));
     DEFER { delete[] program.data; };
 
     std::string disassembled_filename = "/tmp/x86-sim.asm.XXXXXX";
@@ -19,7 +64,7 @@ static error_code test_disassembler(const char* filename) {
     RET_BARE_ERRNO(disassembled_file == nullptr);
     DEFER { fclose(disassembled_file); };
 
-    printf("Disassembling %s to %s\n", filename, disassembled_filename.data());
+    printf("Disassembling %s to %s\n", filename.data(), disassembled_filename.data());
     RET_IF(disassemble_program(disassembled_file, program));
     fflush(disassembled_file);
 
@@ -79,13 +124,13 @@ static error_code test_disassembler(const char* filename) {
     return {};
 }
 
-static error_code assemble_and_test_disassembler(const char* filename) {
+static error_code assemble_and_test_disassembler(const std::string& filename) {
     std::string assembled_filename = "/tmp/x86-sim_nasm.out.XXXXXX";
     auto assembled_fd = mkstemp(assembled_filename.data());
     RET_BARE_ERRNO(assembled_fd == -1);
     DEFER { close(assembled_fd); unlink(assembled_filename.data()); };
 
-    printf("Assembling %s to %s\n", filename, assembled_filename.data());
+    printf("Assembling %s to %s\n", filename.data(), assembled_filename.data());
     {
         std::string command = "nasm -o ";
         command += assembled_filename;
@@ -95,35 +140,105 @@ static error_code assemble_and_test_disassembler(const char* filename) {
         if (system(command.data())) return Errc::ReassemblyError;
     }
 
-    return test_disassembler(assembled_filename.data());
+    return test_disassembler(assembled_filename);
+}
+
+static error_code test_simulator(const std::string& filename) {
+    UNWRAP_BARE(auto x86, Intel8086::read_program_from_file(filename.data()));
+
+    std::string output_filename = "/tmp/x86-sim.out.XXXXXX";
+    auto output_fd = mkstemp(output_filename.data());
+    RET_BARE_ERRNO(output_fd == -1);
+    DEFER { close(output_fd); unlink(output_filename.data()); };
+
+    {
+        auto output_file = fdopen(output_fd, "wb");
+        RET_BARE_ERRNO(output_file == nullptr);
+        DEFER { fclose(output_file); };
+
+        printf("Outputting simulation results to %s\n", output_filename.data());
+        RET_IF(x86.simulate(output_file));
+    }
+
+    UNWRAP_BARE(auto output, read_file(output_filename));
+    UNWRAP_BARE(auto expected_output, read_file(filename + ".txt"));
+
+    const char register_line[] = "Final registers:";
+    auto search_i = expected_output.find(register_line);
+    if (search_i == std::string::npos) {
+        fflush(stdout);
+        fprintf(stderr, "Didn't find the register line in the expected output file %s.txt\n", filename.data());
+        return Errc::InvalidExpectedOutputFile;
+    }
+    search_i += std::size(register_line) - 1;
+
+    auto expected_line_end_i = search_i;
+    auto output_line_end_i = output.find_first_of("\r\n");
+    if (output_line_end_i == std::string::npos) return Errc::InvalidOutputFile;
+
+    error_code ret = {};
+    for (i32 reg = 0; reg < 8; ++reg) {
+        auto expected_line = read_line({ expected_output.data() + expected_line_end_i, expected_output.size() - expected_line_end_i }, true);
+        auto output_line = read_line({ output.data() + output_line_end_i, output.size() - output_line_end_i }, true);
+
+        if (expected_line.s != output_line.s) {
+            fflush(stdout);
+            fprintf(stderr, "Mismatch on output line %d:\n", reg);
+            fprintf(stderr, "Expected: %.*s\n", (int)expected_line.s.size(), expected_line.s.data());
+            fprintf(stderr, "Output  : %.*s\n", (int)output_line.s.size(), output_line.s.data());
+            ret = Errc::SimulatingError;
+        }
+
+        expected_line_end_i += expected_line.length;
+        output_line_end_i += output_line.length;
+    }
+
+    return ret;
 }
 
 static const char test_prefix[] = "../tests/";
-static constexpr std::array tests = {
+static const char ce_test_prefix[] = "../computer_enhance/perfaware/";
+
+static constexpr std::array disassembly_tests = {
     "direct_jmp_call_within_segment.asm",
 };
-
-static const char ce_test_prefix[] = "../computer_enhance/perfaware/";
-static constexpr std::array ce_tests = {
+static constexpr std::array ce_disassembly_tests = {
     "part1/listing_0040_challenge_movs",
     "part1/listing_0041_add_sub_cmp_jnz",
     "part1/listing_0042_completionist_decode",
 };
 
+static constexpr std::array ce_simulator_tests = {
+    "part1/listing_0043_immediate_movs",
+};
+
 static error_code run_tests() {
     std::string filename;
-    for (auto test : tests) {
+
+    for (auto test : disassembly_tests) {
         filename = test_prefix;
         filename += test;
         printf("\n");
         RET_IF(assemble_and_test_disassembler(filename.data()));
     }
-    for (auto test : ce_tests) {
+    for (auto test : ce_disassembly_tests) {
         filename = ce_test_prefix;
         filename += test;
         printf("\n");
         RET_IF(test_disassembler(filename.data()));
     }
+
+    printf("\nRunning simulator tests\n");
+    {
+        Intel8086 x86;
+        x86.test_set_get();
+    }
+    for (auto test : ce_simulator_tests) {
+        filename = ce_test_prefix;
+        filename += test;
+        RET_IF(test_simulator(filename));
+    }
+
     return {};
 }
 
@@ -137,6 +252,8 @@ int main() {
         fprintf(stderr, "Error while running tests: %s\n", e.message().data());
         return EXIT_FAILURE;
     }
+
+    printf("\nAll tests passed\n");
 
     return 0;
 }

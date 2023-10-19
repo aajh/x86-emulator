@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cerrno>
 #include <cstdint>
+#include <optional>
 #include <system_error>
 #include <type_traits>
 
@@ -96,8 +97,19 @@ enum class Errc {
     UnknownInstruction,
     ReassemblyError,
     ReassemblyFailed,
+    InvalidOutputFile,
+    InvalidExpectedOutputFile,
+    SimulatingError,
 };
 namespace std {
     template<> struct is_error_code_enum<Errc> : true_type {};
 }
 error_code make_error_code(Errc);
+
+#ifdef TESTING
+#ifndef NDEBUG
+#define test_assert(a, b) assert((a) == (b))
+#else
+#define test_assert(a, b) if ((a) != (b)) exit(EXIT_FAILURE);
+#endif
+#endif
