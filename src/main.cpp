@@ -27,7 +27,13 @@ int main(int argc, char** argv) {
     auto filename = argv[2];
 
     if (strcmp(option, "-s") == 0 || strcmp(option, "--simulate") == 0) {
-        if (auto e = simulate_file(filename)) {
+        auto x86 = Intel8086::read_program_from_file(filename);
+        if (!x86) {
+            fprintf(stderr, "Error while reading file %s: %s\n", filename, x86.error().message().data());
+            return EXIT_FAILURE;
+        }
+        x86->test_set_get(); // TODO: Move to test
+        if (auto e = x86->simulate()) {
             fprintf(stderr, "Error while simulating file %s: %s\n", filename, e.message().data());
             return EXIT_FAILURE;
         }

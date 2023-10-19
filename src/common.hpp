@@ -5,12 +5,14 @@
 #include <cerrno>
 #include <cstdint>
 #include <system_error>
+#include <type_traits>
 
 #if __has_include("expected")
 #include <expected>
 using std::expected;
 using std::unexpected;
 #else
+#define TL_ASSERT(x)
 #include <tl/expected.hpp>
 using tl::expected;
 using tl::unexpected;
@@ -64,11 +66,20 @@ template <class F> deferrer<F> operator*(defer_dummy, F f) { return {f}; }
 #define UNWRAP_BARE(variable_decl, expression) UNWRAP_BARE_IMPL(variable_decl, expression, __LINE__)
 
 #define UNWRAP_OR_IMPL_(variable_decl, expression, LINE)\
+    static_assert(std::is_trivially_destructible_v<decltype(expression)::value_type>);\
     auto UNWRAP_WRAPPED_VAR(LINE) = expression;\
     variable_decl = std::move(*UNWRAP_WRAPPED_VAR(LINE));\
     if (!UNWRAP_WRAPPED_VAR(LINE))
 #define UNWRAP_OR_IMPL(v, e, LINE) UNWRAP_OR_IMPL_(v, e, LINE)
 #define UNWRAP_OR(variable_decl, expression) UNWRAP_OR_IMPL(variable_decl, expression, __LINE__)
+
+#define UNWRAP_OR_C(variable_decl, expression) UNWRAP_OR_C_IMPL(variable_decl, expression, __LINE__)
+#define UNWRAP_OR_C_IMPL(v, e, LINE) UNWRAP_OR_IMPL_C_(v, e, LINE)
+#define UNWRAP_OR_IMPL_C_(variable_decl, expression, LINE)\
+    static_assert(std::is_trivially_destructible_v<decltype(expression)::value_type>);\
+    auto UNWRAP_WRAPPED_VAR(LINE) = expression;\
+    variable_decl = std::move(*UNWRAP_WRAPPED_VAR(LINE));\
+    if (decltype(UNWRAP_WRAPPED_VAR(LINE))::error_type e; (!UNWRAP_WRAPPED_VAR(LINE) && (e = UNWRAP_WRAPPED_VAR(LINE).error())) || !UNWRAP_WRAPPED_VAR(LINE))
 
 static inline error_code make_error_code_errno(int errno_value = errno) {
     return std::make_error_code(std::errc(errno_value));

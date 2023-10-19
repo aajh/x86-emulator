@@ -3,7 +3,6 @@
 #include "common.hpp"
 #include <cstdio>
 #include <optional>
-#include <type_traits>
 
 enum class Register : u32 {
     ax, cx, dx, bx,
