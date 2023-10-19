@@ -146,21 +146,9 @@ static error_code assemble_and_test_disassembler(const std::string& filename) {
 static error_code test_simulator(const std::string& filename) {
     UNWRAP_BARE(auto x86, Intel8086::read_program_from_file(filename.data()));
 
-    std::string output_filename = "/tmp/x86-sim.out.XXXXXX";
-    auto output_fd = mkstemp(output_filename.data());
-    RET_BARE_ERRNO(output_fd == -1);
-    DEFER { close(output_fd); unlink(output_filename.data()); };
+    printf("Simulating program %s\n", filename.data());
+    RET_IF(x86.simulate(nullptr));
 
-    {
-        auto output_file = fdopen(output_fd, "wb");
-        RET_BARE_ERRNO(output_file == nullptr);
-        DEFER { fclose(output_file); };
-
-        printf("Outputting simulation results to %s\n", output_filename.data());
-        RET_IF(x86.simulate(output_file));
-    }
-
-    UNWRAP_BARE(auto output, read_file(output_filename));
     UNWRAP_BARE(auto expected_output, read_file(filename + ".txt"));
 
     const char register_line[] = "Final registers:";
@@ -172,25 +160,37 @@ static error_code test_simulator(const std::string& filename) {
     }
     search_i += std::size(register_line) - 1;
 
-    auto expected_line_end_i = search_i;
-    auto output_line_end_i = output.find_first_of("\r\n");
-    if (output_line_end_i == std::string::npos) return Errc::InvalidOutputFile;
-
     error_code ret = {};
-    for (i32 reg = 0; reg < 8; ++reg) {
+    auto expected_line_end_i = search_i;
+    while (expected_line_end_i < expected_output.size()) {
         auto expected_line = read_line({ expected_output.data() + expected_line_end_i, expected_output.size() - expected_line_end_i }, true);
-        auto output_line = read_line({ output.data() + output_line_end_i, output.size() - output_line_end_i }, true);
 
-        if (expected_line.s != output_line.s) {
+        const char output_template[] = "XX: 0x";
+        if (expected_line.s.size() < std::size(output_template) - 1 + 4) break;
+
+        char expected_reg[3] = { expected_line.s[0], expected_line.s[1], '\0' };
+        UNWRAP_OR(auto reg, lookup_register(expected_reg)) {
             fflush(stdout);
-            fprintf(stderr, "Mismatch on output line %d:\n", reg);
-            fprintf(stderr, "Expected: %.*s\n", (int)expected_line.s.size(), expected_line.s.data());
-            fprintf(stderr, "Output  : %.*s\n", (int)output_line.s.size(), output_line.s.data());
+            fprintf(stderr, "Unknown register %s on line ", expected_reg);
+            fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
+            return Errc::InvalidExpectedOutputFile;
+        }
+
+        auto expected_value = strtol(expected_line.s.data() + std::size(output_template) - 1, nullptr, 16);
+        if (expected_value < 0 || expected_value > std::numeric_limits<u16>::max()) {
+            fflush(stdout);
+            fprintf(stderr, "Register value parsing failed on line ");
+            fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
+            return Errc::InvalidExpectedOutputFile;
+        }
+
+        if ((u16)expected_value != x86.get(reg)) {
+            fflush(stdout);
+            fprintf(stderr, "Register %s has unexpected value 0x%.4hX (expected 0x%.4hX)\n", expected_reg, x86.get(reg), (u16)expected_value);
             ret = Errc::SimulatingError;
         }
 
         expected_line_end_i += expected_line.length;
-        output_line_end_i += output_line.length;
     }
 
     return ret;
@@ -211,6 +211,7 @@ static constexpr std::array ce_disassembly_tests = {
 static constexpr std::array ce_simulator_tests = {
     "part1/listing_0043_immediate_movs",
     "part1/listing_0044_register_movs",
+    "part1/listing_0045_challenge_register_movs",
 };
 
 static error_code run_tests() {

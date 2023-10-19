@@ -23,6 +23,12 @@ static constexpr const char* lookup_register(Register reg) {
     assert(i < std::size(register_names));
     return register_names[i];
 }
+static constexpr std::optional<Register> lookup_register(const char* reg) {
+    for (std::underlying_type_t<Register> i = 0; i < register_names.size(); ++i) {
+        if (strcmp(register_names[i], reg) == 0) return static_cast<Register>(i);
+    }
+    return {};
+}
 static constexpr bool is_8bit_register(Register reg) {
     using T = std::underlying_type_t<Register>;
     auto r = static_cast<T>(reg);

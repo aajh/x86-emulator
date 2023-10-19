@@ -18,10 +18,10 @@ void Intel8086::print_registers(FILE* out) const {
 error_code Intel8086::simulate(FILE* out) {
     if (program.size == 0) return {};
 
-    DEFER { print_registers(out); };
+    DEFER { if (out) print_registers(out); };
     while (ip < program.size) {
         UNWRAP_OR(auto instruction, decode_instruction_at(program, ip)) {
-            fflush(out);
+            if (out) fflush(out);
             fprintf(stderr, "Unknown instruction at location %u (first byte 0x%X)\n", ip, program.data[ip]);
             return Errc::UnknownInstruction;
         }
