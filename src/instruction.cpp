@@ -660,7 +660,7 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
     auto& oo = i.operands[!operand_index];
 
     switch (o.type) {
-        using enum Operand::Type;
+            using enum Operand::Type;
         case None:
             break;
         case Register:

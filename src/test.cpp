@@ -210,6 +210,7 @@ static constexpr std::array ce_disassembly_tests = {
 
 static constexpr std::array ce_simulator_tests = {
     "part1/listing_0043_immediate_movs",
+    "part1/listing_0044_register_movs",
 };
 
 static error_code run_tests() {

@@ -69,6 +69,10 @@ public:
         }
     }
 
+    void set(Register destination, Register source) {
+        set(destination, get(source));
+    }
+
     void print_registers(FILE* out = stdout) const;
     error_code simulate(FILE* out = stdout);
 

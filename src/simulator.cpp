@@ -33,17 +33,21 @@ error_code Intel8086::simulate(FILE* out) {
 
 bool Intel8086::simulate(const Instruction& i) {
     switch (i.type) {
-        using enum Instruction::Type;
-        using enum Operand::Type;
+            using enum Instruction::Type;
+            using enum Operand::Type;
         case Mov:
-        if (i.operands[0].type == Register && i.operands[1].type == Immediate) {
-            set(i.operands[0].reg, i.operands[1].immediate);
-            ip += i.size;
-            break;
-        }
+            if (i.operands[0].type == Register && i.operands[1].type == Immediate) {
+                set(i.operands[0].reg, i.operands[1].immediate);
+                ip += i.size;
+                break;
+            } else if (i.operands[0].type == Register && i.operands[1].type == Register) {
+                set(i.operands[0].reg, i.operands[1].reg);
+                ip += i.size;
+                break;
+            }
         default:
-        fprintf(stderr, "Unimplemented instruction %s\n", i.name());
-        return true;
+            fprintf(stderr, "Unimplemented instruction %s\n", i.name());
+            return true;
     }
     return false;
 }
