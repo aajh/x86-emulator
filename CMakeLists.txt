@@ -16,6 +16,7 @@ set(target_sources
     common.cpp
     instruction.cpp
     program.cpp
+    simulator.cpp
 )
 list(TRANSFORM target_sources PREPEND "src/")
 

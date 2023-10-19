@@ -23,23 +23,23 @@ static constexpr std::array operations_1 = {
 };
 
 static constexpr std::array operations_2 = {
-    Test, None, Not, Neg,
+    Test, Invalid, Not, Neg,
     Mul, Imul, Div, Idiv,
 };
 
 static constexpr std::array operations_3 = {
-    None, None, Call, Call,
-    Jmp, Jmp, Push, None,
+    Invalid, Invalid, Call, Call,
+    Jmp, Jmp, Push, Invalid,
 };
 
 static constexpr std::array shift_operations = {
     Rol, Ror, Rcl, Rcr,
-    Shl, Shr, None, Sar,
+    Shl, Shr, Invalid, Sar,
 };
 
 static constexpr std::array string_instructions = {
-    None, None, Movs, Cmps,
-    None, Stos, Lods, Scas,
+    Invalid, Invalid, Movs, Cmps,
+    Invalid, Stos, Lods, Scas,
 };
 
 static constexpr std::array jmp_instructions = {
@@ -53,7 +53,7 @@ static constexpr std::array loop_instructions = {
 
 static constexpr std::array processor_control_instructions = {
     Clc, Stc, Cli, Sti,
-    Cld, Std, None, None,
+    Cld, Std, Invalid, Invalid,
 };
 
 typedef Instruction::Type (*lookup_function)(u8);
@@ -61,7 +61,7 @@ typedef Instruction::Type (*lookup_function)(u8);
 template<const auto& array>
 static constexpr Instruction::Type lookup(u8 i) {
     static_assert(std::size(array) <= std::numeric_limits<decltype(i)>::max());
-    if (i >= std::size(array)) return None;
+    if (i >= std::size(array)) return Invalid;
     return array[i];
 }
 
@@ -119,7 +119,7 @@ static void decode_rm_register(const Program& program, u32 start, Instruction& i
     COMMON_MOD_RM_DEFINITIONS;
 
     i.size = 2 + displacement_bytes;
-    i.type = type != None ? type : lookup<operations_1>(op);
+    i.type = type != Invalid ? type : lookup<operations_1>(op);
     i.flags.wide = w;
 
     switch (mod) {
@@ -254,7 +254,7 @@ static void decode_immediate_to_accumulator(const Program& program, u32 start, I
     if (read_data(program, start + 1, w, data)) return;
 
     i.size = w ? 3 : 2;
-    i.type = type != None ? type : lookup<operations_1>(op);
+    i.type = type != Invalid ? type : lookup<operations_1>(op);
     i.flags.wide = w;
 
     i.operands[0] = w ? Register::ax : Register::al;
@@ -286,7 +286,7 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     bool is_shift = (a & 0b1111'1100) == 0b1101'0000;
     u8 op = (b & 0b0011'1000) >> 3;
 
-    auto type = None;
+    auto type = Invalid;
     if (a == 0b1000'1111 && op == 0) type = Pop;
     else if ((a & ~1) == (u8)~1 && op == 0) type = Inc;
     else if ((a & ~1) == (u8)~1 && op == 1) type = Dec;
@@ -294,7 +294,7 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     else if ((a & ~1) == 0b1111'0110) type = lookup<operations_2>(op);
     else if (is_shift) type = lookup<shift_operations>(op);
 
-    if (type == None) {
+    if (type == Invalid) {
 #ifndef NDEBUG
         fprintf(stderr, "decode_rm: unknown instruction 0x%X 0x%X\n", a, b);
 #endif
@@ -531,11 +531,11 @@ read_after_prefix:
     } else if ((a & ~0b10) == 0b1000'1100) {
         decode_mov_rm_segment_register(program, start, i);
     } else if ((a & 0b1100'0100) == 0) {
-        decode_rm_register(program, start, i, None); // Lookup from operations_1
+        decode_rm_register(program, start, i, Invalid); // Lookup from operations_1
     } else if ((a & 0b1111'1100) == 0b1000'0000) {
         decode_immediate_to_rm(program, start, i, false); // Lookup from operations_1
     } else if ((a & 0b1100'0110) == 0b0000'0100) {
-        decode_immediate_to_accumulator(program, start, i, None); // Lookup from operations_1
+        decode_immediate_to_accumulator(program, start, i, Invalid); // Lookup from operations_1
     } else if ((a & 0b1111'0000) == 0b0111'0000) {
         decode_ip_inc(program, start, i, 0b1111, lookup<jmp_instructions>);
     } else if ((a & 0b1111'1100) == 0b1110'0000) {
@@ -650,7 +650,7 @@ read_after_prefix:
 
     if (i.address != start) i.size += start - i.address;
 
-    if (i.type == None) return {};
+    if (i.type == Invalid) return {};
     return i;
 }
 
@@ -694,7 +694,7 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
 }
 
 void output_instruction_assembly(FILE* out, const Instruction& i) {
-    if (i.type == None) return;
+    if (i.type == Invalid) return;
 
     if (i.flags.rep) fprintf(out, i.flags.rep_nz ? "repnz " : "rep ");
     if (i.flags.lock) fprintf(out, "lock ");

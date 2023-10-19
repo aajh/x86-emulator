@@ -25,6 +25,26 @@ static constexpr const char* lookup_register(Register reg) {
     assert(i < std::size(register_names));
     return register_names[i];
 }
+static constexpr bool is_8bit_register(Register reg) {
+    using T = std::underlying_type_t<Register>;
+    auto r = static_cast<T>(reg);
+    return static_cast<T>(Register::al) <= r && r <= static_cast<T>(Register::bh);
+}
+static constexpr bool is_8bit_low_register(Register reg) {
+    using T = std::underlying_type_t<Register>;
+    auto r = static_cast<T>(reg);
+    return static_cast<T>(Register::al) <= r && r <= static_cast<T>(Register::bl);
+}
+static constexpr bool is_8bit_high_register(Register reg) {
+    using T = std::underlying_type_t<Register>;
+    auto r = static_cast<T>(reg);
+    return static_cast<T>(Register::ah) <= r && r <= static_cast<T>(Register::bh);
+}
+static constexpr bool is_segment_register(Register reg) {
+    using T = std::underlying_type_t<Register>;
+    auto r = static_cast<T>(reg);
+    return static_cast<T>(Register::es) <= r && r <= static_cast<T>(Register::ds);
+}
 
 enum class EffectiveAddressCalculation : u32 {
     bx_si, bx_di, bp_si, bp_di,
@@ -104,7 +124,7 @@ struct Operand {
 
 struct Instruction {
     enum class Type : u32 {
-        None,
+        Invalid,
 
         Mov, Push, Pop, Xchg, In, Out,
         Xlat, Lea, Lds, Les,
@@ -192,7 +212,7 @@ struct Instruction {
     u32 address = 0;
     u32 size = 0;
 
-    Type type = Type::None;
+    Type type = Type::Invalid;
     Flags flags = {};
     std::optional<Register> segment_override;
 
