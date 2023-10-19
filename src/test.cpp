@@ -144,9 +144,10 @@ static error_code assemble_and_test_disassembler(const std::string& filename) {
 }
 
 static error_code test_simulator(const std::string& filename) {
-    UNWRAP_BARE(auto x86, Intel8086::read_program_from_file(filename.data()));
-
     printf("Simulating program %s\n", filename.data());
+
+    Intel8086 x86;
+    RET_IF(x86.load_program(filename.data()));
     RET_IF(x86.simulate(nullptr));
 
     UNWRAP_BARE(auto expected_output, read_file(filename + ".txt"));

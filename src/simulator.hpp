@@ -1,28 +1,24 @@
 #pragma once
 
 #include "common.hpp"
+#include <vector>
 
 #include "instruction.hpp"
-#include "program.hpp"
+
+struct Program;
 
 class Intel8086 {
     using enum Register;
 public:
-    Intel8086() = default;
-    Intel8086(Intel8086&& o) : registers(o.registers), ip(o.ip), program(o.program) {
-        o.program = {};
-    }
-    Intel8086(Program&& p) : program(p) {
-        p = {};
-    }
-    ~Intel8086() {
-        if (program.data) {
-            delete[] program.data;
-            program = {};
-        }
+    static constexpr u32 memory_size = 1 << 20;
+
+    Intel8086() : memory(memory_size) {}
+    Intel8086(const Program& program) : Intel8086() {
+        load_program(program);
     }
 
-    static expected<Intel8086, error_code> read_program_from_file(const char* filename);
+    void load_program(const Program& program);
+    error_code load_program(const char* filename);
 
     template<typename T = u16>
     T get(Register reg) const {
@@ -85,7 +81,7 @@ private:
     std::array<u16, 12> registers = {};
     u16 ip = 0;
 
-    Program program;
+    std::vector<u8> memory;
 
     bool simulate(const Instruction& i);
 };

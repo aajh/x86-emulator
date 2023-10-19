@@ -4,8 +4,8 @@
 #include <cstdio>
 
 struct Program {
-    u32 size = 0;
     u8* data = nullptr;
+    u32 size = 0;
 };
 
 expected<Program, error_code> read_program(FILE* input_file);

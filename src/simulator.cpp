@@ -1,28 +1,38 @@
 #include "simulator.hpp"
+#include <algorithm>
+#include <cstring>
 
 #include "instruction.hpp"
 #include "program.hpp"
 
-expected<Intel8086, error_code> Intel8086::read_program_from_file(const char* filename) {
-    UNWRAP(auto program, read_program(filename));
-    return Intel8086(std::move(program));
+constexpr u8 halt_instruction = 0xf4;
+
+void Intel8086::load_program(const Program& program) {
+    auto size = std::min((size_t)program.size, memory.size());
+    memcpy(memory.data(), program.data, size);
+    if (memory.size() > size) memory[size] = halt_instruction;
+}
+
+error_code Intel8086::load_program(const char* filename) {
+    UNWRAP_BARE(auto program, read_program(filename));
+    DEFER { delete[] program.data; };
+    load_program(program);
+    return {};
 }
 
 void Intel8086::print_registers(FILE* out) const {
     fprintf(out, "Registers:\n");
-    for (auto r : { ax, bx, cx, dx, sp, bp, si, di }) {
+    for (auto r : { ax, bx, cx, dx, sp, bp, si, di, es, cs, ss, ds }) {
         fprintf(out, "\t%s: 0x%.4hX (%hu)\n", lookup_register(r), get(r), get(r));
     }
 }
 
 error_code Intel8086::simulate(FILE* out) {
-    if (program.size == 0) return {};
-
     DEFER { if (out) print_registers(out); };
-    while (ip < program.size) {
-        UNWRAP_OR(auto instruction, decode_instruction_at(program, ip)) {
+    while (true) {
+        UNWRAP_OR(auto instruction, decode_instruction_at({ memory.data(), (u32)memory.size() }, ip)) {
             if (out) fflush(out);
-            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%X)\n", ip, program.data[ip]);
+            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%X)\n", ip, memory[ip]);
             return Errc::UnknownInstruction;
         }
 
@@ -38,17 +48,21 @@ bool Intel8086::simulate(const Instruction& i) {
         case Mov:
             if (i.operands[0].type == Register && i.operands[1].type == Immediate) {
                 set(i.operands[0].reg, i.operands[1].immediate);
-                ip += i.size;
-                break;
             } else if (i.operands[0].type == Register && i.operands[1].type == Register) {
                 set(i.operands[0].reg, i.operands[1].reg);
-                ip += i.size;
-                break;
+            } else {
+                fprintf(stderr, "Unimplemented instruction mov\n");
+                return true;
             }
+            break;
+        case Hlt:
+            return true;
         default:
             fprintf(stderr, "Unimplemented instruction %s\n", i.name());
             return true;
     }
+
+    ip += i.size;
     return false;
 }
 
