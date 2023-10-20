@@ -50,6 +50,7 @@ error_code disassemble_program(FILE* out, const Program& program, const char* fi
         }
 
         instruction.print_assembly(out);
+        fprintf(out, "\n");
         i += instruction.size;
     }
 

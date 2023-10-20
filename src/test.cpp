@@ -207,10 +207,10 @@ static error_code test_simulator(const std::string& filename) {
                 }
             }
 
-            if (expected_flags != x86.flags) {
+            if (expected_flags != x86.get_flags()) {
                 fflush(stdout);
                 fprintf(stderr, "Flags do not match: has '");
-                x86.flags.print(stderr);
+                x86.get_flags().print(stderr);
                 fprintf(stderr, "' expected '");
                 expected_flags.print(stderr);
                 fprintf(stderr, "'\n");
@@ -222,14 +222,6 @@ static error_code test_simulator(const std::string& filename) {
         const char output_template[] = "XX: 0x";
         if (expected_line.s.size() < std::size(output_template) - 1 + 4) break;
 
-        char expected_reg[3] = { expected_line.s[0], expected_line.s[1], '\0' };
-        UNWRAP_OR(auto reg, lookup_register(expected_reg)) {
-            fflush(stdout);
-            fprintf(stderr, "Unknown register %s on line ", expected_reg);
-            fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
-            return Errc::InvalidExpectedOutputFile;
-        }
-
         auto expected_value = strtol(expected_line.s.data() + std::size(output_template) - 1, nullptr, 16);
         if (expected_value < 0 || expected_value > std::numeric_limits<u16>::max()) {
             fflush(stdout);
@@ -238,9 +230,23 @@ static error_code test_simulator(const std::string& filename) {
             return Errc::InvalidExpectedOutputFile;
         }
 
-        if ((u16)expected_value != x86.get(reg)) {
+        char expected_reg[3] = { expected_line.s[0], expected_line.s[1], '\0' };
+        u16 value = x86.get_ip();
+
+        if (strcmp(expected_reg, "ip") != 0) {
+            UNWRAP_OR(auto reg, lookup_register(expected_reg)) {
+                fflush(stdout);
+                fprintf(stderr, "Unknown register %s on line ", expected_reg);
+                fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
+                return Errc::InvalidExpectedOutputFile;
+            }
+
+            value = x86.get(reg);
+        }
+
+        if ((u16)expected_value != value) {
             fflush(stdout);
-            fprintf(stderr, "Register %s has unexpected value 0x%.4x (expected 0x%.4hx)\n", expected_reg, x86.get(reg), (u16)expected_value);
+            fprintf(stderr, "Register %s has unexpected value 0x%.4x (expected 0x%.4hx)\n", expected_reg, value, (u16)expected_value);
             ret = Errc::SimulatingError;
         }
 
@@ -268,6 +274,7 @@ static constexpr std::array ce_simulator_tests = {
     "part1/listing_0045_challenge_register_movs",
     "part1/listing_0046_add_sub_cmp",
     "part1/listing_0047_challenge_flags",
+    "part1/listing_0049_conditional_jumps",
 };
 
 static error_code run_tests() {

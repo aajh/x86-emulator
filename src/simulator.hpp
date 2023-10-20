@@ -85,6 +85,14 @@ public:
         }
     }
 
+    u16 get_ip() const {
+        return ip;
+    }
+
+    const Flags& get_flags() const {
+        return flags;
+    }
+
     template<typename T = u16>
     void set(Register reg, T value) {
         using R = std::underlying_type_t<Register>;
@@ -162,11 +170,11 @@ public:
     void test_set_get(bool print = false);
 #endif
 
-    Flags flags = {};
 
 private:
     std::array<u16, 12> registers = {};
     u16 ip = 0;
+    Flags flags = {};
 
     std::vector<u8> memory;
 

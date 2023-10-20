@@ -7,13 +7,15 @@
 
 #ifdef TESTING
 constexpr bool verbose_execution = false;
+#elif defined(VERBOSE_EXECUTION)
+constexpr bool verbose_execution = true;
 #else
 constexpr bool verbose_execution = false;
 #endif
 
 #define UNIMPLEMENTED_INSTRUCTION\
     fflush(stdout);\
-    fprintf(stderr, "Unimplemented instruction %s\n", i.name());\
+    fprintf(stderr, "\nUnimplemented instruction %s\n", i.name());\
     return true;
 
 #define UNIMPLEMENTED_SHORT\
@@ -42,12 +44,13 @@ void Intel8086::Flags::print(FILE* out) const {
     if (t) fprintf(out, "T");
 }
 
-constexpr u8 halt_instruction = 0xf4;
+// Normally not used x86 op code
+constexpr u8 inserted_halt_instruction = 0xf;
 
 void Intel8086::load_program(const Program& program) {
     auto size = std::min((size_t)program.size, memory.size());
     memcpy(memory.data(), program.data, size);
-    if (memory.size() > size) memory[size] = halt_instruction;
+    if (memory.size() > size) memory[size] = inserted_halt_instruction;
 }
 
 error_code Intel8086::load_program(const char* filename) {
@@ -59,11 +62,14 @@ error_code Intel8086::load_program(const char* filename) {
 
 void Intel8086::print_state(FILE* out) const {
     constexpr int padding = 8;
-    fprintf(out, "Registers:\n");
+
+    fprintf(out, "\nRegisters:\n");
     for (auto r : { ax, bx, cx, dx, sp, bp, si, di, es, cs, ss, ds }) {
         if (get(r) == 0) continue;
         fprintf(out, "%*s: 0x%.4x (%u)\n", padding, lookup_register(r), get(r), get(r));
     }
+    if (ip) fprintf(out, "%*s: 0x%.4x (%u)\n", padding, "ip", ip, ip);
+
     fprintf(out, "%*s: ", padding, "flags");
     flags.print(out);
     fprintf(out, "\n");
@@ -72,6 +78,8 @@ void Intel8086::print_state(FILE* out) const {
 error_code Intel8086::simulate(FILE* out) {
     DEFER { if (out) print_state(out); };
     while (true) {
+        if (memory[ip] == inserted_halt_instruction) break;
+
         UNWRAP_OR(auto instruction, Instruction::decode_at({ memory.data(), (u32)memory.size() }, ip)) {
             if (out) fflush(out);
             fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", ip, memory[ip]);
@@ -88,12 +96,15 @@ bool Intel8086::simulate(const Instruction& i) {
     using enum Operand::Type;
 
     if constexpr (verbose_execution) i.print_assembly();
+    DEFER { if constexpr (verbose_execution) printf("\n"); };
 
     const auto& o1 = i.operands[0];
     const auto& o2 = i.operands[1];
 
     i32 ocount = o1.type != None;
     if (ocount == 1 && o2.type != None) ++ocount;
+
+    ip += i.size;
 
     switch (i.type) {
         case Mov:
@@ -137,13 +148,15 @@ bool Intel8086::simulate(const Instruction& i) {
                 UNIMPLEMENTED_INSTRUCTION;
             }
             break;
+        case Jnz:
+            if (!flags.z) ip += get<i32>(o1);
+            break;
         case Hlt:
             return true;
         default:
             UNIMPLEMENTED_INSTRUCTION;
     }
 
-    ip += i.size;
     return false;
 }
 
@@ -174,9 +187,9 @@ void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub
     flags.o = same_sign && (a_signed != result_signed);
 
     if constexpr (verbose_execution) {
-        printf("    Flags: ");
+        printf(" ; Flags: ");
         flags.print();
-        printf(" 0x%.4x 0x%.8x 0x%.4x 0x%.4x\n", result, wide_result, a, b);
+        printf(" 0x%.4x 0x%.8x 0x%.4x 0x%.4x", result, wide_result, a, b);
     }
 }
 

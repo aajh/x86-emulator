@@ -266,15 +266,12 @@ static void decode_ip_inc(const Program& program, u32 start, Instruction& i, uin
 
     u8 a = program.data[start];
     i8 ip_inc = program.data[start + 1];
-
     u8 lookup_i = a & bitmask;
-    // The coded jump length and the jump length in assembly differ by the size of this instruction, i.e. two bytes
-    i16 adjusted_ip_inc = ip_inc + 2;
 
     i.size = 2;
     i.type = look(lookup_i);
     i.flags.ip_inc = true;
-    i.operands[0].set_ip_inc(adjusted_ip_inc);
+    i.operands[0].set_ip_inc(ip_inc);
 }
 
 static void decode_rm(const Program& program, u32 start, Instruction& i) {
@@ -451,7 +448,7 @@ static void decode_direct_call_jmp(const Program& program, u32 start, Instructio
     i16 ip_inc = 0;
     if (read_data(program, start + 1, short_ip_inc ? 1 : 2, true, ip_inc)) return;
 
-    i32 adjusted_ip_inc = ip_inc + start + size;
+    i32 adjusted_ip_inc = ip_inc + start;
 
     i.size = size;
     i.type = type;
@@ -687,8 +684,9 @@ static void print_operand(FILE* out, const Instruction& i, bool operand_index) {
             fprintf(out, "%hu", o.immediate);
             break;
         case IpInc:
-            if (i.flags.ip_inc) fprintf(out, "$%c%d", o.ip_inc < 0 ? '-' : '+', abs(o.ip_inc));
-            else fprintf(out, "%d", o.ip_inc);
+            i32 ip_inc = o.ip_inc + i.size;
+            if (i.flags.ip_inc) fprintf(out, "$%c%d", ip_inc < 0 ? '-' : '+', abs(ip_inc));
+            else fprintf(out, "%d", ip_inc);
             break;
     }
 }
@@ -720,6 +718,4 @@ void Instruction::print_assembly(FILE* out) const {
             print_operand(out, *this, 1);
         }
     }
-
-    fprintf(out, "\n");
 }
