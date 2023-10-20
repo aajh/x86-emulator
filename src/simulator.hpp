@@ -12,18 +12,18 @@ class Intel8086 {
     using enum Register;
 public:
     struct Flags {
-        //bool cf : 1; // Carry
-        //bool pf : 1; // Parity
-        //bool af : 1; // Auxiliary carry
-        bool zf : 1; // Zero
-        bool sf : 1; // Sign
-        //bool of : 1; // Overflow
-        //bool iflag : 1; // Interrupt-enable
-        //bool df : 1; // Direction
-        //bool tf : 1; // Trap
+        //bool c : 1; // Carry
+        //bool p : 1; // Parity
+        //bool a : 1; // Auxiliary carry
+        bool z : 1; // Zero
+        bool s : 1; // Sign
+        //bool o : 1; // Overflow
+        //bool i : 1; // Interrupt-enable
+        //bool d : 1; // Direction
+        //bool t : 1; // Trap
 
         bool operator==(const Flags& o) const {
-            return zf == o.zf && sf == o.sf;
+            return z == o.z && s == o.s;
         }
         void print(FILE* out = stdout) const;
     };

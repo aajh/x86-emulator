@@ -167,7 +167,7 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
     COMMON_MOD_RM_DEFINITIONS;
 
     u16 data;
-    if (read_data(program, start + 2 + displacement_bytes, wide_data, data)) return;
+    if (read_data(program, start + 2 + displacement_bytes, wide_data ? 2 : 1, s, data)) return;
 
     i.size = 2 + displacement_bytes + (wide_data ? 2 : 1);
     i.type = type;
@@ -508,7 +508,7 @@ static void decode_esc(const Program& program, u32 start, Instruction& i) {
     }
 }
 
-std::optional<Instruction> decode_instruction_at(const Program& program, u32 start) {
+std::optional<Instruction> Instruction::decode_at(const Program& program, u32 start) {
     if (program.size == 0 || program.data == nullptr) return {};
     if (start >= program.size) return {};
 
@@ -693,31 +693,31 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
     }
 }
 
-void output_instruction_assembly(FILE* out, const Instruction& i) {
-    if (i.type == Invalid) return;
+void Instruction::output_assembly(FILE* out) const {
+    if (type == Invalid) return;
 
-    if (i.flags.rep) fprintf(out, i.flags.rep_nz ? "repnz " : "rep ");
-    if (i.flags.lock) fprintf(out, "lock ");
+    if (flags.rep) fprintf(out, flags.rep_nz ? "repnz " : "rep ");
+    if (flags.lock) fprintf(out, "lock ");
 
-    fprintf(out, "%s", i.name());
+    fprintf(out, "%s", name());
 
-    if (i.flags.intersegment) {
-        if (i.type == Ret) {
+    if (flags.intersegment) {
+        if (type == Ret) {
             fprintf(out, "f");
-        } else if ((i.type == Call || i.type == Jmp) && i.operands[1].type == Operand::Type::None) {
+        } else if ((type == Call || type == Jmp) && operands[1].type == Operand::Type::None) {
             fprintf(out, " far");
         }
     }
-    if (i.flags.short_jmp) fprintf(out, " short");
-    if (i.is_string_manipulation()) fprintf(out, "%c", i.flags.wide ? 'w' : 'b');
+    if (flags.short_jmp) fprintf(out, " short");
+    if (is_string_manipulation()) fprintf(out, "%c", flags.wide ? 'w' : 'b');
 
-    if (i.operands[0].type != Operand::Type::None) {
+    if (operands[0].type != Operand::Type::None) {
         fprintf(out, " ");
-        output_operand(out, i, 0);
+        output_operand(out, *this, 0);
 
-        if (i.operands[1].type != Operand::Type::None) {
-            fprintf(out, "%s", !i.flags.intersegment ? ", " : ":");
-            output_operand(out, i, 1);
+        if (operands[1].type != Operand::Type::None) {
+            fprintf(out, "%s", !flags.intersegment ? ", " : ":");
+            output_operand(out, *this, 1);
         }
     }
 

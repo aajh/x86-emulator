@@ -19,8 +19,8 @@
     }
 
 void Intel8086::Flags::print(FILE* out) const {
-    if (zf) fprintf(out, "Z");
-    if (sf) fprintf(out, "S");
+    if (z) fprintf(out, "Z");
+    if (s) fprintf(out, "S");
 }
 
 constexpr u8 halt_instruction = 0xf4;
@@ -42,6 +42,7 @@ void Intel8086::print_state(FILE* out) const {
     constexpr int padding = 8;
     fprintf(out, "Registers:\n");
     for (auto r : { ax, bx, cx, dx, sp, bp, si, di, es, cs, ss, ds }) {
+        if (get(r) == 0) continue;
         fprintf(out, "%*s: 0x%.4hX (%hu)\n", padding, lookup_register(r), get(r), get(r));
     }
     fprintf(out, "%*s: ", padding, "flags");
@@ -52,7 +53,7 @@ void Intel8086::print_state(FILE* out) const {
 error_code Intel8086::simulate(FILE* out) {
     DEFER { if (out) print_state(out); };
     while (true) {
-        UNWRAP_OR(auto instruction, decode_instruction_at({ memory.data(), (u32)memory.size() }, ip)) {
+        UNWRAP_OR(auto instruction, Instruction::decode_at({ memory.data(), (u32)memory.size() }, ip)) {
             if (out) fflush(out);
             fprintf(stderr, "Unknown instruction at location %u (first byte 0x%X)\n", ip, memory[ip]);
             return Errc::UnknownInstruction;
@@ -87,8 +88,8 @@ bool Intel8086::simulate(const Instruction& i) {
             if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
                 u16 result = get(o1) + get(o2);
                 set(o1, result);
-                flags.zf = result == 0;
-                flags.sf = result & (1 << 15);
+                flags.z = result == 0;
+                flags.s = result & (1 << 15);
             } else {
                 UNIMPLEMENTED_INSTRUCTION;
             }
@@ -99,8 +100,8 @@ bool Intel8086::simulate(const Instruction& i) {
             if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
                 u16 result = get(o1) - get(o2);
                 if (i.type == Sub) set(o1, result);
-                flags.zf = result == 0;
-                flags.sf = result & (1 << 15);
+                flags.z = result == 0;
+                flags.s = result & (1 << 15);
             } else {
                 UNIMPLEMENTED_INSTRUCTION;
             }

@@ -43,13 +43,13 @@ error_code disassemble_program(FILE* out, const Program& program, const char* fi
 
     u32 i = 0;
     while (i < program.size) {
-        UNWRAP_OR(auto instruction, decode_instruction_at(program, i)) {
+        UNWRAP_OR(auto instruction, Instruction::decode_at(program, i)) {
             fflush(stdout);
             fprintf(stderr, "Unknown instruction at location %u (first byte 0x%X)\n", i, program.data[i]);
             return Errc::UnknownInstruction;
         }
 
-        output_instruction_assembly(out, instruction);
+        instruction.output_assembly(out);
         i += instruction.size;
     }
 

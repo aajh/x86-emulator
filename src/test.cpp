@@ -174,10 +174,10 @@ static error_code test_simulator(const std::string& filename) {
             for (auto f : expected_flags_string) {
                 switch (f) {
                     case 'Z':
-                        expected_flags.zf = true;
+                        expected_flags.z = true;
                         break;
                     case 'S':
-                        expected_flags.sf = true;
+                        expected_flags.s = true;
                         break;
                 }
             }

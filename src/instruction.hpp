@@ -3,6 +3,8 @@
 #include "common.hpp"
 #include <cstdio>
 
+struct Program;
+
 enum class Register : u32 {
     ax, cx, dx, bx,
     sp, bp, si, di,
@@ -226,6 +228,7 @@ struct Instruction {
 
     std::array<Operand, 2> operands = {};
 
+    static std::optional<Instruction> decode_at(const Program& program, u32 start);
 
     static constexpr const char* lookup_type(Type type) {
         auto i = static_cast<std::underlying_type_t<Type>>(type);
@@ -252,9 +255,6 @@ struct Instruction {
     void swap_operands() {
         swap(operands[0], operands[1]);
     }
+
+    void output_assembly(FILE* out = stdout) const;
 };
-
-struct Program;
-
-std::optional<Instruction> decode_instruction_at(const Program& program, u32 start);
-void output_instruction_assembly(FILE* out, const Instruction& instruction);
