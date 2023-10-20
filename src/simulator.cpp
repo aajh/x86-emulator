@@ -19,8 +19,15 @@
     }
 
 void Intel8086::Flags::print(FILE* out) const {
+    if (c) fprintf(out, "C");
+    if (p) fprintf(out, "P");
+    if (a) fprintf(out, "A");
     if (z) fprintf(out, "Z");
     if (s) fprintf(out, "S");
+    if (o) fprintf(out, "O");
+    if (i) fprintf(out, "I");
+    if (d) fprintf(out, "D");
+    if (t) fprintf(out, "T");
 }
 
 constexpr u8 halt_instruction = 0xf4;
@@ -88,8 +95,7 @@ bool Intel8086::simulate(const Instruction& i) {
             if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
                 u16 result = get(o1) + get(o2);
                 set(o1, result);
-                flags.z = result == 0;
-                flags.s = result & (1 << 15);
+                set_flags(result);
             } else {
                 UNIMPLEMENTED_INSTRUCTION;
             }
@@ -100,8 +106,7 @@ bool Intel8086::simulate(const Instruction& i) {
             if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
                 u16 result = get(o1) - get(o2);
                 if (i.type == Sub) set(o1, result);
-                flags.z = result == 0;
-                flags.s = result & (1 << 15);
+                set_flags(result);
             } else {
                 UNIMPLEMENTED_INSTRUCTION;
             }
@@ -114,6 +119,20 @@ bool Intel8086::simulate(const Instruction& i) {
 
     ip += i.size;
     return false;
+}
+
+void Intel8086::set_flags(u16 result) {
+    u16 low_byte = result & 0xff;
+    // Parity check from Hacker's Delight section 5-2
+    u16 lb_parity = low_byte ^ (low_byte >> 1);
+    lb_parity ^= lb_parity >> 2;
+    lb_parity ^= lb_parity >> 4;
+    lb_parity ^= lb_parity >> 8;
+    lb_parity = !(lb_parity & 1);
+
+    flags.p = lb_parity;
+    flags.z = result == 0;
+    flags.s = result & (1 << 15);
 }
 
 

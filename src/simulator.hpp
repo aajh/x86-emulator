@@ -12,18 +12,20 @@ class Intel8086 {
     using enum Register;
 public:
     struct Flags {
-        //bool c : 1; // Carry
-        //bool p : 1; // Parity
-        //bool a : 1; // Auxiliary carry
+        bool c : 1; // Carry
+        bool p : 1; // Parity
+        bool a : 1; // Auxiliary carry
         bool z : 1; // Zero
         bool s : 1; // Sign
-        //bool o : 1; // Overflow
-        //bool i : 1; // Interrupt-enable
-        //bool d : 1; // Direction
-        //bool t : 1; // Trap
+        bool o : 1; // Overflow
+        bool i : 1; // Interrupt-enable
+        bool d : 1; // Direction
+        bool t : 1; // Trap
 
-        bool operator==(const Flags& o) const {
-            return z == o.z && s == o.s;
+        bool operator==(const Flags& f) const {
+            return c == f.c && p == f.p && a == f.a && z == f.z &&
+                   s == f.s && o == f.o && i == f.i && d == f.d &&
+                   t == f.t;
         }
         void print(FILE* out = stdout) const;
     };
@@ -167,4 +169,5 @@ private:
     std::vector<u8> memory;
 
     bool simulate(const Instruction& i);
+    void set_flags(u16 result);
 };

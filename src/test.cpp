@@ -173,12 +173,37 @@ static error_code test_simulator(const std::string& filename) {
             Intel8086::Flags expected_flags = {};
             for (auto f : expected_flags_string) {
                 switch (f) {
+                    case 'C':
+                        expected_flags.c = true;
+                        break;
+                    case 'P':
+                        expected_flags.p = true;
+                        break;
+                    case 'A':
+                        expected_flags.a = true;
+                        break;
                     case 'Z':
                         expected_flags.z = true;
                         break;
                     case 'S':
                         expected_flags.s = true;
                         break;
+                    case 'O':
+                        expected_flags.o = true;
+                        break;
+                    case 'I':
+                        expected_flags.i = true;
+                        break;
+                    case 'D':
+                        expected_flags.d = true;
+                        break;
+                    case 'T':
+                        expected_flags.t = true;
+                        break;
+                    default:
+                        fflush(stdout);
+                        fprintf(stderr, "Unknown flag '%c' in the expected output file.\n", f);
+                        return Errc::InvalidExpectedOutputFile;
                 }
             }
 
