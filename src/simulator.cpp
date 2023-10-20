@@ -5,6 +5,24 @@
 #include "instruction.hpp"
 #include "program.hpp"
 
+#define UNIMPLEMENTED_INSTRUCTION\
+    fflush(stdout);\
+    fprintf(stderr, "Unimplemented instruction %s\n", i.name());\
+    return true;
+
+
+#define TWO_OPERANDS_REQUIRED\
+    if (ocount != 2) {\
+        fflush(stdout);\
+        fprintf(stderr, "Instruction %s requires two operands\n", i.name());\
+        return true;\
+    }
+
+void Intel8086::Flags::print(FILE* out) const {
+    if (zf) fprintf(out, "Z");
+    if (sf) fprintf(out, "S");
+}
+
 constexpr u8 halt_instruction = 0xf4;
 
 void Intel8086::load_program(const Program& program) {
@@ -20,15 +38,19 @@ error_code Intel8086::load_program(const char* filename) {
     return {};
 }
 
-void Intel8086::print_registers(FILE* out) const {
+void Intel8086::print_state(FILE* out) const {
+    constexpr int padding = 8;
     fprintf(out, "Registers:\n");
     for (auto r : { ax, bx, cx, dx, sp, bp, si, di, es, cs, ss, ds }) {
-        fprintf(out, "\t%s: 0x%.4hX (%hu)\n", lookup_register(r), get(r), get(r));
+        fprintf(out, "%*s: 0x%.4hX (%hu)\n", padding, lookup_register(r), get(r), get(r));
     }
+    fprintf(out, "%*s: ", padding, "flags");
+    flags.print(out);
+    fprintf(out, "\n");
 }
 
 error_code Intel8086::simulate(FILE* out) {
-    DEFER { if (out) print_registers(out); };
+    DEFER { if (out) print_state(out); };
     while (true) {
         UNWRAP_OR(auto instruction, decode_instruction_at({ memory.data(), (u32)memory.size() }, ip)) {
             if (out) fflush(out);
@@ -42,24 +64,51 @@ error_code Intel8086::simulate(FILE* out) {
 }
 
 bool Intel8086::simulate(const Instruction& i) {
+    using enum Instruction::Type;
+    using enum Operand::Type;
+
+    const auto& o1 = i.operands[0];
+    const auto& o2 = i.operands[1];
+
+    i32 ocount = o1.type != None;
+    if (ocount == 1 && o2.type != None) ++ocount;
+
     switch (i.type) {
-            using enum Instruction::Type;
-            using enum Operand::Type;
         case Mov:
-            if (i.operands[0].type == Register && i.operands[1].type == Immediate) {
-                set(i.operands[0].reg, i.operands[1].immediate);
-            } else if (i.operands[0].type == Register && i.operands[1].type == Register) {
-                set(i.operands[0].reg, i.operands[1].reg);
+            TWO_OPERANDS_REQUIRED;
+            if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
+                set(o1, o2);
             } else {
-                fprintf(stderr, "Unimplemented instruction mov\n");
-                return true;
+                UNIMPLEMENTED_INSTRUCTION;
+            }
+            break;
+        case Add:
+            TWO_OPERANDS_REQUIRED;
+            if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
+                u16 result = get(o1) + get(o2);
+                set(o1, result);
+                flags.zf = result == 0;
+                flags.sf = result & (1 << 15);
+            } else {
+                UNIMPLEMENTED_INSTRUCTION;
+            }
+            break;
+        case Sub:
+        case Cmp:
+            TWO_OPERANDS_REQUIRED;
+            if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
+                u16 result = get(o1) - get(o2);
+                if (i.type == Sub) set(o1, result);
+                flags.zf = result == 0;
+                flags.sf = result & (1 << 15);
+            } else {
+                UNIMPLEMENTED_INSTRUCTION;
             }
             break;
         case Hlt:
             return true;
         default:
-            fprintf(stderr, "Unimplemented instruction %s\n", i.name());
-            return true;
+            UNIMPLEMENTED_INSTRUCTION;
     }
 
     ip += i.size;

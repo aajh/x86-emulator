@@ -79,18 +79,25 @@ struct Operand {
         Register,
         Memory,
         Immediate,
+        IpInc,
     } type = Type::None;
 
     union {
         Register reg;
         MemoryOperand memory;
-        i32 immediate;
+        u16 immediate;
+        i32 ip_inc;
     };
 
     Operand() : type(Type::None) {}
     Operand(Register reg) : type(Type::Register), reg(reg) {}
     Operand(MemoryOperand memory) : type(Type::Memory), memory(memory) {}
-    Operand(i32 immediate) : type(Type::Immediate), immediate(immediate) {}
+    Operand(u16 immediate) : type(Type::Immediate), immediate(immediate) {}
+
+    void set_ip_inc(i32 ii) {
+        type = Type::IpInc;
+        ip_inc = ii;
+    }
 
     friend void swap(Operand& lhs, Operand& rhs) {
         using enum Type;
@@ -108,6 +115,9 @@ struct Operand {
             case Immediate:
                 lhs.immediate = rhs.immediate;
                 break;
+            case IpInc:
+                lhs.ip_inc = rhs.ip_inc;
+                break;
         }
         rhs.type = tmp.type;
         switch (tmp.type) {
@@ -121,6 +131,9 @@ struct Operand {
                 break;
             case Immediate:
                 rhs.immediate = tmp.immediate;
+                break;
+            case IpInc:
+                rhs.ip_inc = tmp.ip_inc;
                 break;
         }
     }
@@ -202,15 +215,6 @@ struct Instruction {
         bool intersegment : 1;
         bool lock : 1;
         bool short_jmp : 1;
-
-        auto& value() {
-            using int_type = u8;
-            static_assert(sizeof(int_type) == sizeof(Flags));
-            return *reinterpret_cast<int_type*>(this);
-        }
-        void reset() {
-            value() = 0;
-        }
     };
 
     u32 address = 0;

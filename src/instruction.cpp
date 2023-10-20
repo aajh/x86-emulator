@@ -82,7 +82,7 @@ static constexpr EffectiveAddressCalculation lookup_effective_address_calculatio
 
 template<typename T>
 [[nodiscard]] static bool read_data(const Program& program, u32 start, u32 displacement_bytes, bool sign_extension_8_bit, T& result) {
-    assert(displacement_bytes <= 2);
+    if (displacement_bytes > 2) return true;
     if (start + displacement_bytes > program.size) return true;
 
     u8 displacement_lo = displacement_bytes >= 1 ? program.data[start] : 0;
@@ -274,7 +274,7 @@ static void decode_ip_inc(const Program& program, u32 start, Instruction& i, uin
     i.size = 2;
     i.type = look(lookup_i);
     i.flags.ip_inc = true;
-    i.operands[0] = adjusted_ip_inc;
+    i.operands[0].set_ip_inc(adjusted_ip_inc);
 }
 
 static void decode_rm(const Program& program, u32 start, Instruction& i) {
@@ -456,7 +456,7 @@ static void decode_direct_call_jmp(const Program& program, u32 start, Instructio
     i.size = size;
     i.type = type;
     i.flags.short_jmp = short_ip_inc;
-    i.operands[0] = adjusted_ip_inc;
+    i.operands[0].set_ip_inc(adjusted_ip_inc);
 }
 
 static void decode_ret(const Program& program, u32 start, Instruction& i) {
@@ -509,8 +509,8 @@ static void decode_esc(const Program& program, u32 start, Instruction& i) {
 }
 
 std::optional<Instruction> decode_instruction_at(const Program& program, u32 start) {
-    assert(program.size && program.data);
-    assert(start < program.size);
+    if (program.size == 0 || program.data == nullptr) return {};
+    if (start >= program.size) return {};
 
     Instruction i = {};
     i.address = start;
@@ -684,11 +684,11 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
             fprintf(out, "]");
             break;
         case Immediate:
-            if (i.flags.ip_inc) {
-                fprintf(out, "$%c%d", o.immediate < 0 ? '-' : '+', abs(o.immediate));
-                break;
-            }
-            fprintf(out, "%d", o.immediate);
+            fprintf(out, "%hu", o.immediate);
+            break;
+        case IpInc:
+            if (i.flags.ip_inc) fprintf(out, "$%c%d", o.ip_inc < 0 ? '-' : '+', abs(o.ip_inc));
+            else fprintf(out, "%d", o.ip_inc);
             break;
     }
 }

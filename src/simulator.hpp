@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.hpp"
+#include <cstdio>
 #include <vector>
 
 #include "instruction.hpp"
@@ -10,6 +11,23 @@ struct Program;
 class Intel8086 {
     using enum Register;
 public:
+    struct Flags {
+        //bool cf : 1; // Carry
+        //bool pf : 1; // Parity
+        //bool af : 1; // Auxiliary carry
+        bool zf : 1; // Zero
+        bool sf : 1; // Sign
+        //bool of : 1; // Overflow
+        //bool iflag : 1; // Interrupt-enable
+        //bool df : 1; // Direction
+        //bool tf : 1; // Trap
+
+        bool operator==(const Flags& o) const {
+            return zf == o.zf && sf == o.sf;
+        }
+        void print(FILE* out = stdout) const;
+    };
+
     static constexpr u32 memory_size = 1 << 20;
 
     Intel8086() : memory(memory_size) {}
@@ -44,6 +62,25 @@ public:
         }
     }
 
+    u16 get(const Operand& o) const {
+        switch (o.type) {
+            using enum Operand::Type;
+            case None:
+                fprintf(stderr, "Trying to get 'None' operand\n");
+                assert(false);
+                return 0;
+            case Register:
+                return get(o.reg);
+            case Immediate:
+                return o.immediate;
+            case Memory:
+            case IpInc:
+                assert(false);
+                fprintf(stderr, "Unimplemented get operand 'Memory' or 'IpInc'\n");
+                return 0;
+        }
+    }
+
     template<typename T = u16>
     void set(Register reg, T value) {
         using R = std::underlying_type_t<Register>;
@@ -65,17 +102,63 @@ public:
         }
     }
 
+    void set(const Operand& o, u16 value) {
+        switch (o.type) {
+            using enum Operand::Type;
+            case None:
+                fprintf(stderr, "Trying to set 'None' operand\n");
+                assert(false);
+                break;
+            case Register:
+                set(o.reg, value);
+                break;
+            case Immediate:
+                fprintf(stderr, "Cannot modify an immediate value\n");
+                break;
+            case IpInc:
+                fprintf(stderr, "Cannot modify an ip_inc value\n");
+                break;
+            case Memory:
+                assert(false);
+                fprintf(stderr, "Unimplemented set operand 'Memory'\n");
+                break;
+        }
+    }
+
+    void set(const Operand& o1, const Operand& o2) {
+        switch (o2.type) {
+            using enum Operand::Type;
+            case None:
+                fprintf(stderr, "Trying to set with 'None' operand\n");
+                assert(false);
+                break;
+            case Register:
+            case Immediate:
+                set(o1, get(o2));
+                break;
+            case IpInc:
+                fprintf(stderr, "Cannot set with an ip_inc value\n");
+                break;
+            case Memory:
+                assert(false);
+                fprintf(stderr, "Unimplemented set operand 'Memory'\n");
+                break;
+        }
+    }
+
     void set(Register destination, Register source) {
         set(destination, get(source));
     }
 
-    void print_registers(FILE* out = stdout) const;
+    void print_state(FILE* out = stdout) const;
     error_code simulate(FILE* out = stdout);
 
 #ifdef TESTING
     void assert_registers(u16 a, i16 b, u8 c, i8 d, u8 e, i8 f, bool print) const;
     void test_set_get(bool print = false);
 #endif
+
+    Flags flags = {};
 
 private:
     std::array<u16, 12> registers = {};

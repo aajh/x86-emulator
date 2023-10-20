@@ -166,6 +166,34 @@ static error_code test_simulator(const std::string& filename) {
     while (expected_line_end_i < expected_output.size()) {
         auto expected_line = read_line({ expected_output.data() + expected_line_end_i, expected_output.size() - expected_line_end_i }, true);
 
+        const char flags[] = "flags:";
+        if (expected_line.s.starts_with(flags)) {
+            auto expected_flags_string = expected_line.s.substr(std::size(flags));
+
+            Intel8086::Flags expected_flags = {};
+            for (auto f : expected_flags_string) {
+                switch (f) {
+                    case 'Z':
+                        expected_flags.zf = true;
+                        break;
+                    case 'S':
+                        expected_flags.sf = true;
+                        break;
+                }
+            }
+
+            if (expected_flags != x86.flags) {
+                fflush(stdout);
+                fprintf(stderr, "Flags do not match: has '");
+                x86.flags.print(stderr);
+                fprintf(stderr, "' expected '");
+                expected_flags.print(stderr);
+                fprintf(stderr, "'\n");
+                return Errc::SimulatingError;
+            }
+            break;
+        }
+
         const char output_template[] = "XX: 0x";
         if (expected_line.s.size() < std::size(output_template) - 1 + 4) break;
 
@@ -213,6 +241,7 @@ static constexpr std::array ce_simulator_tests = {
     "part1/listing_0043_immediate_movs",
     "part1/listing_0044_register_movs",
     "part1/listing_0045_challenge_register_movs",
+    "part1/listing_0046_add_sub_cmp",
 };
 
 static error_code run_tests() {
