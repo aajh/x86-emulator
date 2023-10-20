@@ -159,15 +159,17 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
 
     u8 op = (b & 0b0011'1000) >> 3;
     auto type = is_mov ? Mov : lookup<operations_1>(op);
+    bool is_logic = type == And || type == Or || type == Xor;
 
-    bool s = a & 0b10 || type == And || type == Or || type == Xor;
+    bool s = a & 0b10 || is_logic;
     bool w = a & 1;
 
     bool wide_data = (is_mov || type == And || type == Or || type == Xor) ? w : !s && w;
+    bool sign_extend_data = is_logic ? false : s;
     COMMON_MOD_RM_DEFINITIONS;
 
     u16 data;
-    if (read_data(program, start + 2 + displacement_bytes, wide_data ? 2 : 1, s, data)) return;
+    if (read_data(program, start + 2 + displacement_bytes, wide_data ? 2 : 1, sign_extend_data, data)) return;
 
     i.size = 2 + displacement_bytes + (wide_data ? 2 : 1);
     i.type = type;

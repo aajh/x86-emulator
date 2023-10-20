@@ -194,7 +194,7 @@ void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub
 
     flags.c = wide_result > std::numeric_limits<decltype(result)>::max();
     flags.p = lb_parity;
-    flags.a = aux_carry || aux_borrow; // TODO: Test this more
+    flags.a = aux_carry || aux_borrow; // FIXME: Doesn't always work
     flags.z = result == 0;
     flags.s = result & (1 << 15);
     flags.o = same_sign && (a_signed != result_signed);
