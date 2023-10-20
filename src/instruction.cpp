@@ -655,7 +655,7 @@ read_after_prefix:
 }
 
 
-static void output_operand(FILE* out, const Instruction& i, bool operand_index) {
+static void print_operand(FILE* out, const Instruction& i, bool operand_index) {
     auto& o = i.operands[operand_index];
     auto& oo = i.operands[!operand_index];
 
@@ -693,7 +693,7 @@ static void output_operand(FILE* out, const Instruction& i, bool operand_index) 
     }
 }
 
-void Instruction::output_assembly(FILE* out) const {
+void Instruction::print_assembly(FILE* out) const {
     if (type == Invalid) return;
 
     if (flags.rep) fprintf(out, flags.rep_nz ? "repnz " : "rep ");
@@ -713,11 +713,11 @@ void Instruction::output_assembly(FILE* out) const {
 
     if (operands[0].type != Operand::Type::None) {
         fprintf(out, " ");
-        output_operand(out, *this, 0);
+        print_operand(out, *this, 0);
 
         if (operands[1].type != Operand::Type::None) {
             fprintf(out, "%s", !flags.intersegment ? ", " : ":");
-            output_operand(out, *this, 1);
+            print_operand(out, *this, 1);
         }
     }
 

@@ -40,7 +40,7 @@ public:
     void load_program(const Program& program);
     error_code load_program(const char* filename);
 
-    template<typename T = u16>
+    template<typename T = u32>
     T get(Register reg) const {
         constexpr auto is_signed = std::is_signed_v<T>;
 
@@ -64,7 +64,8 @@ public:
         }
     }
 
-    u16 get(const Operand& o) const {
+    template<typename T = u32>
+    T get(const Operand& o) const {
         switch (o.type) {
             using enum Operand::Type;
             case None:
@@ -72,14 +73,15 @@ public:
                 assert(false);
                 return 0;
             case Register:
-                return get(o.reg);
+                return get<T>(o.reg);
             case Immediate:
                 return o.immediate;
             case Memory:
-            case IpInc:
                 assert(false);
-                fprintf(stderr, "Unimplemented get operand 'Memory' or 'IpInc'\n");
+                fprintf(stderr, "Unimplemented get operand 'Memory'\n");
                 return 0;
+            case IpInc:
+                return o.ip_inc;
         }
     }
 
@@ -169,5 +171,5 @@ private:
     std::vector<u8> memory;
 
     bool simulate(const Instruction& i);
-    void set_flags(u16 result);
+    void set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub);
 };

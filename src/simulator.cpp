@@ -5,11 +5,23 @@
 #include "instruction.hpp"
 #include "program.hpp"
 
+#ifdef TESTING
+constexpr bool verbose_execution = false;
+#else
+constexpr bool verbose_execution = false;
+#endif
+
 #define UNIMPLEMENTED_INSTRUCTION\
     fflush(stdout);\
     fprintf(stderr, "Unimplemented instruction %s\n", i.name());\
     return true;
 
+#define UNIMPLEMENTED_SHORT\
+    if (!i.flags.wide) {\
+        fflush(stdout);\
+        fprintf(stderr, "Unimplemented short version of instruction %s\n", i.name());\
+        return true;\
+    }
 
 #define TWO_OPERANDS_REQUIRED\
     if (ocount != 2) {\
@@ -50,7 +62,7 @@ void Intel8086::print_state(FILE* out) const {
     fprintf(out, "Registers:\n");
     for (auto r : { ax, bx, cx, dx, sp, bp, si, di, es, cs, ss, ds }) {
         if (get(r) == 0) continue;
-        fprintf(out, "%*s: 0x%.4hX (%hu)\n", padding, lookup_register(r), get(r), get(r));
+        fprintf(out, "%*s: 0x%.4x (%u)\n", padding, lookup_register(r), get(r), get(r));
     }
     fprintf(out, "%*s: ", padding, "flags");
     flags.print(out);
@@ -62,7 +74,7 @@ error_code Intel8086::simulate(FILE* out) {
     while (true) {
         UNWRAP_OR(auto instruction, Instruction::decode_at({ memory.data(), (u32)memory.size() }, ip)) {
             if (out) fflush(out);
-            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%X)\n", ip, memory[ip]);
+            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", ip, memory[ip]);
             return Errc::UnknownInstruction;
         }
 
@@ -74,6 +86,8 @@ error_code Intel8086::simulate(FILE* out) {
 bool Intel8086::simulate(const Instruction& i) {
     using enum Instruction::Type;
     using enum Operand::Type;
+
+    if constexpr (verbose_execution) i.print_assembly();
 
     const auto& o1 = i.operands[0];
     const auto& o2 = i.operands[1];
@@ -92,10 +106,16 @@ bool Intel8086::simulate(const Instruction& i) {
             break;
         case Add:
             TWO_OPERANDS_REQUIRED;
+            UNIMPLEMENTED_SHORT;
             if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
-                u16 result = get(o1) + get(o2);
+                u16 a = get(o1);
+                u16 b = get(o2);
+
+                u32 wide_result = a + b;
+                u16 result = wide_result & 0xffff;
+
                 set(o1, result);
-                set_flags(result);
+                set_flags(a, b, result, wide_result, false);
             } else {
                 UNIMPLEMENTED_INSTRUCTION;
             }
@@ -103,10 +123,16 @@ bool Intel8086::simulate(const Instruction& i) {
         case Sub:
         case Cmp:
             TWO_OPERANDS_REQUIRED;
+            UNIMPLEMENTED_SHORT;
             if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
-                u16 result = get(o1) - get(o2);
+                u16 a = get(o1);
+                u16 b = get(o2);
+
+                u32 wide_result = a - b;
+                u16 result = wide_result & 0xffff;
+
                 if (i.type == Sub) set(o1, result);
-                set_flags(result);
+                set_flags(a, b, result, wide_result, true);
             } else {
                 UNIMPLEMENTED_INSTRUCTION;
             }
@@ -121,8 +147,15 @@ bool Intel8086::simulate(const Instruction& i) {
     return false;
 }
 
-void Intel8086::set_flags(u16 result) {
+void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub) {
+    if (is_sub) b = -b;
+
+    bool same_sign = (a & (1 << 15)) == (b & (1 << 15));
+    bool a_signed = a & (1 << 15);
+    bool result_signed = result & (1 << 15);
+
     u16 low_byte = result & 0xff;
+
     // Parity check from Hacker's Delight section 5-2
     u16 lb_parity = low_byte ^ (low_byte >> 1);
     lb_parity ^= lb_parity >> 2;
@@ -130,16 +163,28 @@ void Intel8086::set_flags(u16 result) {
     lb_parity ^= lb_parity >> 8;
     lb_parity = !(lb_parity & 1);
 
+    bool aux_carry = (a & 0xf0 + b & 0xf0) > ((a + b) & 0xf0);
+    bool aux_borrow = is_sub && ((a + b) & 0xf) > (a & 0xf + b & 0xf);
+
+    flags.c = wide_result > std::numeric_limits<decltype(result)>::max();
     flags.p = lb_parity;
+    flags.a = aux_carry || aux_borrow; // TODO: Test this more
     flags.z = result == 0;
     flags.s = result & (1 << 15);
+    flags.o = same_sign && (a_signed != result_signed);
+
+    if constexpr (verbose_execution) {
+        printf("    Flags: ");
+        flags.print();
+        printf(" 0x%.4x 0x%.8x 0x%.4x 0x%.4x\n", result, wide_result, a, b);
+    }
 }
 
 
 #ifdef TESTING
 void Intel8086::assert_registers(u16 a, i16 b, u8 c, i8 d, u8 e, i8 f, bool print) const {
     if (print) {
-        printf("ax: 0x%hX 0x%hX, al: 0x%hX 0x%hX, ah: 0x%hX 0x%hX\n", get<u16>(ax), get<i16>(ax), get(al), get<i16>(al), get(ah), get<i16>(ah));
+        printf("ax: 0x%hx 0x%hx, al: 0x%hx 0x%hx, ah: 0x%hx 0x%hx\n", get<u16>(ax), get<i16>(ax), get<u16>(al), get<i16>(al), get<u16>(ah), get<i16>(ah));
         printf("ax: %u %d, al: %u %d, ah: %u %d\n\n", get<u16>(ax), get<i16>(ax), get(al), get<i16>(al), get(ah), get<i16>(ah));
     }
     test_assert(get<u16>(ax), a);

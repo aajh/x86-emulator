@@ -45,11 +45,11 @@ error_code disassemble_program(FILE* out, const Program& program, const char* fi
     while (i < program.size) {
         UNWRAP_OR(auto instruction, Instruction::decode_at(program, i)) {
             fflush(stdout);
-            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%X)\n", i, program.data[i]);
+            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", i, program.data[i]);
             return Errc::UnknownInstruction;
         }
 
-        instruction.output_assembly(out);
+        instruction.print_assembly(out);
         i += instruction.size;
     }
 

@@ -256,5 +256,5 @@ struct Instruction {
         swap(operands[0], operands[1]);
     }
 
-    void output_assembly(FILE* out = stdout) const;
+    void print_assembly(FILE* out = stdout) const;
 };

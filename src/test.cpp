@@ -101,7 +101,7 @@ static error_code test_disassembler(const std::string& filename) {
     for (size_t i = 0; i < program.size; ++i) {
         if (program.data[i] != reassembled_program.data[i]) {
             fflush(stdout);
-            fprintf(stderr, "Reassembled program differs at position %zu (0x%X, original 0x%X)\n", i, reassembled_program.data[i], program.data[i]);
+            fprintf(stderr, "Reassembled program differs at position %zu (0x%x, original 0x%x)\n", i, reassembled_program.data[i], program.data[i]);
 
             fprintf(stderr, "Reassembled bytes around the location are:");
             for (i32 j = -5; j < 6; ++j) {
@@ -240,7 +240,7 @@ static error_code test_simulator(const std::string& filename) {
 
         if ((u16)expected_value != x86.get(reg)) {
             fflush(stdout);
-            fprintf(stderr, "Register %s has unexpected value 0x%.4hX (expected 0x%.4hX)\n", expected_reg, x86.get(reg), (u16)expected_value);
+            fprintf(stderr, "Register %s has unexpected value 0x%.4x (expected 0x%.4hx)\n", expected_reg, x86.get(reg), (u16)expected_value);
             ret = Errc::SimulatingError;
         }
 
@@ -267,6 +267,7 @@ static constexpr std::array ce_simulator_tests = {
     "part1/listing_0044_register_movs",
     "part1/listing_0045_challenge_register_movs",
     "part1/listing_0046_add_sub_cmp",
+    "part1/listing_0047_challenge_flags",
 };
 
 static error_code run_tests() {
