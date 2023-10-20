@@ -88,7 +88,7 @@ struct Operand {
         Register reg;
         MemoryOperand memory;
         u16 immediate;
-        i32 ip_inc;
+        i16 ip_inc;
     };
 
     Operand() : type(Type::None) {}
@@ -96,7 +96,7 @@ struct Operand {
     Operand(MemoryOperand memory) : type(Type::Memory), memory(memory) {}
     Operand(u16 immediate) : type(Type::Immediate), immediate(immediate) {}
 
-    void set_ip_inc(i32 ii) {
+    void set_ip_inc(i16 ii) {
         type = Type::IpInc;
         ip_inc = ii;
     }

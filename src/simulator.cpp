@@ -149,20 +149,20 @@ bool Intel8086::simulate(const Instruction& i) {
             }
             break;
         case Jb:
-            if (flags.c) ip += get<i32>(o1);
+            if (flags.c) ip += get<i16>(o1);
             break;
         case Je:
-            if (flags.z) ip += get<i32>(o1);
+            if (flags.z) ip += get<i16>(o1);
             break;
         case Jnz:
-            if (!flags.z) ip += get<i32>(o1);
+            if (!flags.z) ip += get<i16>(o1);
             break;
         case Jp:
-            if (flags.p) ip += get<i32>(o1);
+            if (flags.p) ip += get<i16>(o1);
             break;
         case Loopnz:
             set(cx, get(cx) - 1);
-            if (get(cx) != 0 && !flags.z) ip += get<i32>(o1);
+            if (get(cx) != 0 && !flags.z) ip += get<i16>(o1);
             break;
         case Hlt:
             return true;

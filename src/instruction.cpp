@@ -450,12 +450,10 @@ static void decode_direct_call_jmp(const Program& program, u32 start, Instructio
     i16 ip_inc = 0;
     if (read_data(program, start + 1, short_ip_inc ? 1 : 2, true, ip_inc)) return;
 
-    i32 adjusted_ip_inc = ip_inc + start;
-
     i.size = size;
     i.type = type;
     i.flags.short_jmp = short_ip_inc;
-    i.operands[0].set_ip_inc(adjusted_ip_inc);
+    i.operands[0].set_ip_inc(ip_inc);
 }
 
 static void decode_ret(const Program& program, u32 start, Instruction& i) {
@@ -688,7 +686,7 @@ static void print_operand(FILE* out, const Instruction& i, bool operand_index) {
         case IpInc:
             i32 ip_inc = o.ip_inc + i.size;
             if (i.flags.ip_inc) fprintf(out, "$%c%d", ip_inc < 0 ? '-' : '+', abs(ip_inc));
-            else fprintf(out, "%d", ip_inc);
+            else fprintf(out, "%d", ip_inc + i.address);
             break;
     }
 }

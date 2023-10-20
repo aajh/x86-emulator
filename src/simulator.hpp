@@ -40,7 +40,7 @@ public:
     void load_program(const Program& program);
     error_code load_program(const char* filename);
 
-    template<typename T = u32>
+    template<typename T = u16>
     T get(Register reg) const {
         constexpr auto is_signed = std::is_signed_v<T>;
 
@@ -64,7 +64,7 @@ public:
         }
     }
 
-    template<typename T = u32>
+    template<typename T = u16>
     T get(const Operand& o) const {
         switch (o.type) {
             using enum Operand::Type;
