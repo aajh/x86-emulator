@@ -38,6 +38,8 @@ public:
     void load_program(std::span<const u8> program);
     error_code load_program(const char* filename);
 
+    error_code dump_memory(const char* filename);
+
     template<typename T = u16>
     T get(Register reg) const {
         constexpr auto is_signed = std::is_signed_v<T>;
@@ -143,7 +145,7 @@ public:
     }
 
     void print_state(FILE* out = stdout) const;
-    error_code simulate(FILE* out = stdout);
+    error_code run();
 
 #ifdef TESTING
     void assert_registers(u16 a, i16 b, u8 c, i8 d, u8 e, i8 f, bool print) const;
@@ -158,6 +160,6 @@ private:
 
     std::vector<u8> memory;
 
-    bool simulate(const Instruction& i);
+    bool execute(const Instruction& i);
     void set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub);
 };

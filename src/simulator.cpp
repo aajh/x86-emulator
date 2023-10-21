@@ -7,8 +7,6 @@
 
 #ifdef TESTING
 constexpr bool verbose_execution = false;
-#elif defined(SILENT_EXECUTION)
-constexpr bool verbose_execution = false;
 #else
 constexpr bool verbose_execution = true;
 #endif
@@ -66,6 +64,19 @@ error_code Intel8086::load_program(const char* filename) {
     return {};
 }
 
+error_code Intel8086::dump_memory(const char* filename) {
+    FILE* file = fopen(filename, "wb");
+    if (!file) {
+        fprintf(stderr, "Couldn't open file %s\n", filename);
+        return make_error_code_errno();
+    }
+    DEFER { fclose(file); };
+
+    RET_BARE_ERRNO(fwrite(memory.data(), 1, memory.size(), file) != memory.size());
+
+    return {};
+}
+
 void Intel8086::print_state(FILE* out) const {
     constexpr int padding = 8;
 
@@ -105,23 +116,23 @@ u16 Intel8086::calculate_address(const MemoryOperand& mo) const {
     }
 }
 
-error_code Intel8086::simulate(FILE* out) {
-    DEFER { if (out) print_state(out); };
+error_code Intel8086::run() {
+    DEFER { if constexpr (verbose_execution) print_state(); };
     while (true) {
         if (memory[ip] == inserted_halt_instruction) break;
 
         UNWRAP_OR(auto instruction, Instruction::decode_at({ memory.data(), (u32)memory.size() }, ip)) {
-            if (out) fflush(out);
+            fflush(stdout);
             fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", ip, memory[ip]);
             return Errc::UnknownInstruction;
         }
 
-        if (simulate(instruction)) break;
+        if (execute(instruction)) break;
     }
     return {};
 }
 
-bool Intel8086::simulate(const Instruction& i) {
+bool Intel8086::execute(const Instruction& i) {
     using enum Instruction::Type;
     using enum Operand::Type;
 

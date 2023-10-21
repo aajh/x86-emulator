@@ -110,7 +110,7 @@ static error_code test_simulator(const std::string& program_filename, const std:
 
     Intel8086 x86;
     RET_IF(x86.load_program(program_filename.data()));
-    RET_IF(x86.simulate(nullptr));
+    RET_IF(x86.run());
 
     UNWRAP_BARE(auto expected_output, read_file(expected_filename));
 
