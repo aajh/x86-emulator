@@ -1,24 +1,19 @@
 #include "program.hpp"
-#include <new>
+#include <cstdlib>
+#include <unistd.h>
 
 #include "instruction.hpp"
 
-expected<Program, error_code> read_program(FILE* input_file) {
-    Program program;
-
+expected<std::vector<u8>, error_code> read_program(FILE* input_file) {
     RET_ERRNO(fseek(input_file, 0, SEEK_END));
 
     const auto ftell_result = ftell(input_file);
     RET_ERRNO(ftell_result < 0);
-    program.size = ftell_result;
-
     RET_ERRNO(fseek(input_file, 0, SEEK_SET));
 
-    program.data = new(std::nothrow) u8[program.size];
-    if (program.data == nullptr) return make_unexpected(std::errc::not_enough_memory);
+    std::vector<u8> program(ftell_result);
 
-    if (fread(program.data, 1, program.size, input_file) != program.size) {
-        delete[] program.data;
+    if (fread(program.data(), 1, program.size(), input_file) != program.size()) {
         if (feof(input_file)) return unexpected(Errc::EndOfFile);
         return make_unexpected_errno();
     }
@@ -26,7 +21,7 @@ expected<Program, error_code> read_program(FILE* input_file) {
     return program;
 }
 
-expected<Program, error_code> read_program(const char* filename) {
+expected<std::vector<u8>, error_code> read_program(const char* filename) {
     FILE* input_file = fopen(filename, "rb");
     if (!input_file) {
         fprintf(stderr, "Couldn't open file %s\n", filename);
@@ -37,15 +32,15 @@ expected<Program, error_code> read_program(const char* filename) {
     return read_program(input_file);
 }
 
-error_code disassemble_program(FILE* out, const Program& program, const char* filename) {
+error_code disassemble_program(FILE* out, std::span<const u8> program, const char* filename) {
     if (filename != nullptr) fprintf(out, "; %s disassembly:\n", filename);
     fprintf(out, "bits 16\n\n");
 
     u32 i = 0;
-    while (i < program.size) {
+    while (i < program.size()) {
         UNWRAP_OR(auto instruction, Instruction::decode_at(program, i)) {
             fflush(stdout);
-            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", i, program.data[i]);
+            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", i, program[i]);
             return Errc::UnknownInstruction;
         }
 
@@ -59,8 +54,36 @@ error_code disassemble_program(FILE* out, const Program& program, const char* fi
 
 error_code disassemble_file(FILE* out, const char* filename) {
     UNWRAP_BARE(auto program, read_program(filename));
-    DEFER { delete[] program.data; };
-
     return disassemble_program(out, program, filename);
 }
 
+expected<std::string, error_code> assemble_program_to_tmp(const char* filename) {
+    std::string assembled_filename = "/tmp/x86-sim_nasm.out.XXXXXX";
+    auto assembled_fd = mkstemp(assembled_filename.data());
+    RET_ERRNO(assembled_fd == -1);
+    if (close(assembled_fd)) {
+        auto e = make_unexpected_errno();
+        unlink(assembled_filename.data());
+        return e;
+    }
+
+    printf("Assembling %s to %s\n", filename, assembled_filename.data());
+    {
+        std::string command = "nasm -o ";
+        command += assembled_filename;
+        command += " ";
+        command += filename;
+
+        if (system(command.data())) {
+            unlink(assembled_filename.data());
+            return unexpected(Errc::ReassemblyError);
+        }
+    }
+
+    return assembled_filename;
+}
+
+error_code unlink_tmp_file(const std::string& tmp_filename) {
+    RET_BARE_ERRNO(unlink(tmp_filename.data()));
+    return {};
+}

@@ -24,21 +24,34 @@ int main(int argc, char** argv) {
     }
 
     auto option = argv[1];
-    auto filename = argv[2];
+    std::string filename = argv[2];
+    bool assemble = filename.ends_with(".asm");
+
+    if (assemble) {
+        printf("; ");
+        auto assembled_filename = assemble_program_to_tmp(filename.data());
+        if (!assembled_filename) {
+            auto e = assembled_filename.error();
+            fprintf(stderr, "Error while assembling file %s with nasm: %s\n", filename.data(), e.message().data());
+            return EXIT_FAILURE;
+        }
+        filename = *assembled_filename;
+    }
+    DEFER { if (assemble) unlink_tmp_file(filename); };
 
     if (strcmp(option, "-s") == 0 || strcmp(option, "--simulate") == 0) {
         Intel8086 x86;
-        if (auto e = x86.load_program(filename)) {
-            fprintf(stderr, "Error while reading file %s: %s\n", filename, e.message().data());
+        if (auto e = x86.load_program(filename.data())) {
+            fprintf(stderr, "Error while reading file %s: %s\n", filename.data(), e.message().data());
             return EXIT_FAILURE;
         }
         if (auto e = x86.simulate()) {
-            fprintf(stderr, "Error while simulating file %s: %s\n", filename, e.message().data());
+            fprintf(stderr, "Error while simulating file %s: %s\n", filename.data(), e.message().data());
             return EXIT_FAILURE;
         }
     } else if (strcmp(option, "-d") == 0 || strcmp(option, "--disassemble") == 0) {
-        if (auto e = disassemble_file(stdout, filename)) {
-            fprintf(stderr, "Error while disassembling file %s: %s\n", filename, e.message().data());
+        if (auto e = disassemble_file(stdout, filename.data())) {
+            fprintf(stderr, "Error while disassembling file %s: %s\n", filename.data(), e.message().data());
             return EXIT_FAILURE;
         }
     } else {

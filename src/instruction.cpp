@@ -1,8 +1,6 @@
 #include "instruction.hpp"
 #include <limits>
 
-#include "program.hpp"
-
 using enum Instruction::Type;
 
 #define COMMON_MOD_RM_DEFINITIONS\
@@ -81,12 +79,12 @@ static constexpr EffectiveAddressCalculation lookup_effective_address_calculatio
 }
 
 template<typename T>
-[[nodiscard]] static bool read_data(const Program& program, u32 start, u32 displacement_bytes, bool sign_extension_8_bit, T& result) {
+[[nodiscard]] static bool read_data(std::span<const u8> program, u32 start, u32 displacement_bytes, bool sign_extension_8_bit, T& result) {
     if (displacement_bytes > 2) return true;
-    if (start + displacement_bytes > program.size) return true;
+    if (start + displacement_bytes > program.size()) return true;
 
-    u8 displacement_lo = displacement_bytes >= 1 ? program.data[start] : 0;
-    u8 displacement_hi = displacement_bytes == 2 ? program.data[start + 1] : 0;
+    u8 displacement_lo = displacement_bytes >= 1 ? program[start] : 0;
+    u8 displacement_hi = displacement_bytes == 2 ? program[start + 1] : 0;
 
     if (displacement_bytes == 2) {
         result = (T)(displacement_lo | (displacement_hi << 8));
@@ -98,15 +96,15 @@ template<typename T>
 }
 
 template<typename T>
-[[nodiscard]] static bool read_data(const Program& program, u32 start, bool wide_data, T& result) {
+[[nodiscard]] static bool read_data(std::span<const u8> program, u32 start, bool wide_data, T& result) {
     return read_data(program, start, wide_data + 1, false, result);
 }
 
-static void decode_rm_register(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
-    if (start + 1 >= program.size) return;
+static void decode_rm_register(std::span<const u8> program, u32 start, Instruction& i, Instruction::Type type) {
+    if (start + 1 >= program.size()) return;
 
-    u8 a = program.data[start];
-    u8 b = program.data[start + 1];
+    u8 a = program[start];
+    u8 b = program[start + 1];
 
     bool no_d_or_w = (type == Lea || type == Lds || type == Les);
     u8 op = (a & 0b0011'1000) >> 3;
@@ -151,11 +149,11 @@ static void decode_rm_register(const Program& program, u32 start, Instruction& i
     if (!is_direct_access && d) i.swap_operands();
 }
 
-static void decode_immediate_to_rm(const Program& program, u32 start, Instruction& i, bool is_mov) {
-    if (start + 1 >= program.size) return;
+static void decode_immediate_to_rm(std::span<const u8> program, u32 start, Instruction& i, bool is_mov) {
+    if (start + 1 >= program.size()) return;
 
-    u8 a = program.data[start];
-    u8 b = program.data[start + 1];
+    u8 a = program[start];
+    u8 b = program[start + 1];
 
     u8 op = (b & 0b0011'1000) >> 3;
     auto type = is_mov ? Mov : lookup<operations_1>(op);
@@ -186,8 +184,8 @@ static void decode_immediate_to_rm(const Program& program, u32 start, Instructio
     i.operands[1] = data;
 }
 
-static void decode_mov_immediate_to_register(const Program& program, u32 start, Instruction& i) {
-    u8 a = program.data[start];
+static void decode_mov_immediate_to_register(std::span<const u8> program, u32 start, Instruction& i) {
+    u8 a = program[start];
     bool w = a & 0b1000;
     u8 reg = a & 0b111;
 
@@ -202,8 +200,8 @@ static void decode_mov_immediate_to_register(const Program& program, u32 start, 
     i.operands[1] = data;
 }
 
-static void decode_mov_memory_accumulator(const Program& program, u32 start, Instruction& i, bool to_accumulator) {
-    u8 a = program.data[start];
+static void decode_mov_memory_accumulator(std::span<const u8> program, u32 start, Instruction& i, bool to_accumulator) {
+    u8 a = program[start];
     bool w = a & 1;
     i16 address = 0;
     if (read_data(program, start + 1, w + 1, true, address)) return;
@@ -218,11 +216,11 @@ static void decode_mov_memory_accumulator(const Program& program, u32 start, Ins
     if (to_accumulator) i.swap_operands();
 }
 
-static void decode_mov_rm_segment_register(const Program& program, u32 start, Instruction& i) {
-    if (start + 1 >= program.size) return;
+static void decode_mov_rm_segment_register(std::span<const u8> program, u32 start, Instruction& i) {
+    if (start + 1 >= program.size()) return;
 
-    u8 a = program.data[start];
-    u8 b = program.data[start + 1];
+    u8 a = program[start];
+    u8 b = program[start + 1];
 
     bool to_segment_register = a & 0b10;
     u8 segment_reg = (b & 0b1'1000) >> 3;
@@ -247,8 +245,8 @@ static void decode_mov_rm_segment_register(const Program& program, u32 start, In
     if (to_segment_register) i.swap_operands();
 }
 
-static void decode_immediate_to_accumulator(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
-    u8 a = program.data[start];
+static void decode_immediate_to_accumulator(std::span<const u8> program, u32 start, Instruction& i, Instruction::Type type) {
+    u8 a = program[start];
     u8 op = (a & 0b0011'1000) >> 3;
     bool w = a & 1;
 
@@ -263,11 +261,11 @@ static void decode_immediate_to_accumulator(const Program& program, u32 start, I
     i.operands[1] = data;
 }
 
-static void decode_ip_inc(const Program& program, u32 start, Instruction& i, uint8_t bitmask, lookup_function look) {
-    if (start + 1 >= program.size) return;
+static void decode_ip_inc(std::span<const u8> program, u32 start, Instruction& i, uint8_t bitmask, lookup_function look) {
+    if (start + 1 >= program.size()) return;
 
-    u8 a = program.data[start];
-    i8 ip_inc = program.data[start + 1];
+    u8 a = program[start];
+    i8 ip_inc = program[start + 1];
     u8 lookup_i = a & bitmask;
 
     i.size = 2;
@@ -276,11 +274,11 @@ static void decode_ip_inc(const Program& program, u32 start, Instruction& i, uin
     i.operands[0].set_ip_inc(ip_inc);
 }
 
-static void decode_rm(const Program& program, u32 start, Instruction& i) {
-    if (start + 1 >= program.size) return;
+static void decode_rm(std::span<const u8> program, u32 start, Instruction& i) {
+    if (start + 1 >= program.size()) return;
 
-    u8 a = program.data[start];
-    u8 b = program.data[start + 1];
+    u8 a = program[start];
+    u8 b = program[start + 1];
 
     bool is_shift = (a & 0b1111'1100) == 0b1101'0000;
     u8 op = (b & 0b0011'1000) >> 3;
@@ -332,8 +330,8 @@ static void decode_rm(const Program& program, u32 start, Instruction& i) {
     }
 }
 
-static void decode_push_pop_register(const Program& program, u32 start, Instruction& i, bool is_pop) {
-    u8 a = program.data[start];
+static void decode_push_pop_register(std::span<const u8> program, u32 start, Instruction& i, bool is_pop) {
+    u8 a = program[start];
     u8 reg = a & 0b111;
 
     i.size = 1;
@@ -342,8 +340,8 @@ static void decode_push_pop_register(const Program& program, u32 start, Instruct
     i.operands[0] = lookup_register(true, reg);
 }
 
-static void decode_push_pop_segment_register(const Program& program, u32 start, Instruction& i, bool is_pop) {
-    u8 a = program.data[start];
+static void decode_push_pop_segment_register(std::span<const u8> program, u32 start, Instruction& i, bool is_pop) {
+    u8 a = program[start];
     u8 segment_reg = (a & 0b1'1000) >> 3;
 
     i.size = 1;
@@ -352,8 +350,8 @@ static void decode_push_pop_segment_register(const Program& program, u32 start, 
     i.operands[0] = lookup_segment_register(segment_reg);
 }
 
-static void decode_xchg_register_accumulator(const Program& program, u32 start, Instruction& i) {
-    u8 a = program.data[start];
+static void decode_xchg_register_accumulator(std::span<const u8> program, u32 start, Instruction& i) {
+    u8 a = program[start];
     u8 reg = a & 0b111;
 
     i.size = 1;
@@ -363,10 +361,10 @@ static void decode_xchg_register_accumulator(const Program& program, u32 start, 
     i.operands[1] = lookup_register(true, reg);
 }
 
-static void decode_in_out(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
+static void decode_in_out(std::span<const u8> program, u32 start, Instruction& i, Instruction::Type type) {
     assert(type == In || type == Out);
 
-    u8 a = program.data[start];
+    u8 a = program[start];
     bool fixed_port = !(a & 0b1000);
     bool w = a & 1;
 
@@ -387,8 +385,8 @@ static void decode_in_out(const Program& program, u32 start, Instruction& i, Ins
     if (type == Out) i.swap_operands();
 }
 
-static void decode_inc_dec_register(const Program& program, u32 start, Instruction& i) {
-    u8 a = program.data[start];
+static void decode_inc_dec_register(std::span<const u8> program, u32 start, Instruction& i) {
+    u8 a = program[start];
     u8 reg = a & 0b111;
 
     i.size = 1;
@@ -397,19 +395,19 @@ static void decode_inc_dec_register(const Program& program, u32 start, Instructi
     i.operands[0] = lookup_register(true, reg);
 }
 
-static void decode_aam_aad(const Program& program, u32 start, Instruction& i) {
-    if (start + 1 >= program.size) return;
+static void decode_aam_aad(std::span<const u8> program, u32 start, Instruction& i) {
+    if (start + 1 >= program.size()) return;
 
-    u8 a = program.data[start];
-    u8 b = program.data[start + 1];
+    u8 a = program[start];
+    u8 b = program[start + 1];
     if (b != 0b0000'1010) return;
 
     i.size = 2;
     i.type = a & 1 ? Aad : Aam;
 }
 
-static void decode_string_instruction(const Program& program, u32 start, Instruction& i) {
-    u8 a = program.data[start];
+static void decode_string_instruction(std::span<const u8> program, u32 start, Instruction& i) {
+    u8 a = program[start];
     if ((a & ~0b1111) != 0b1010'0000) return;
 
     u8 op = (a & 0b1110) >> 1;
@@ -420,15 +418,15 @@ static void decode_string_instruction(const Program& program, u32 start, Instruc
     i.flags.wide = w;
 }
 
-static void decode_rep(const Program& program, u32 start, Instruction& i) {
-    u8 a = program.data[start];
+static void decode_rep(std::span<const u8> program, u32 start, Instruction& i) {
+    u8 a = program[start];
     i.flags.rep = true;
     i.flags.rep_nz = ~a & 1;
 
-    if (start + 1 < program.size) decode_string_instruction(program, start + 1, i);
+    if (start + 1 < program.size()) decode_string_instruction(program, start + 1, i);
 }
 
-static void decode_direct_intersegment_call_jmp(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
+static void decode_direct_intersegment_call_jmp(std::span<const u8> program, u32 start, Instruction& i, Instruction::Type type) {
     u16 ip;
     if (read_data(program, start + 1, true, ip)) return;
     u16 cs;
@@ -442,8 +440,8 @@ static void decode_direct_intersegment_call_jmp(const Program& program, u32 star
     i.operands[1] = ip;
 }
 
-static void decode_direct_call_jmp(const Program& program, u32 start, Instruction& i, Instruction::Type type) {
-    u8 a = program.data[start];
+static void decode_direct_call_jmp(std::span<const u8> program, u32 start, Instruction& i, Instruction::Type type) {
+    u8 a = program[start];
     bool short_ip_inc = a & 0b10;
     u32 size = short_ip_inc ? 2 : 3;
 
@@ -456,8 +454,8 @@ static void decode_direct_call_jmp(const Program& program, u32 start, Instructio
     i.operands[0].set_ip_inc(ip_inc);
 }
 
-static void decode_ret(const Program& program, u32 start, Instruction& i) {
-    u8 a = program.data[start];
+static void decode_ret(std::span<const u8> program, u32 start, Instruction& i) {
+    u8 a = program[start];
     bool has_data = !(a & 1);
     bool intersegment = a & 0b1000;
 
@@ -470,8 +468,8 @@ static void decode_ret(const Program& program, u32 start, Instruction& i) {
     if (has_data) i.operands[0] = data;
 }
 
-static void decode_int(const Program& program, u32 start, Instruction& i) {
-    u8 a = program.data[start];
+static void decode_int(std::span<const u8> program, u32 start, Instruction& i) {
+    u8 a = program[start];
     bool has_data = a & 1;
 
     u16 data = 0;
@@ -482,9 +480,9 @@ static void decode_int(const Program& program, u32 start, Instruction& i) {
     if (has_data) i.operands[0] = data;
 }
 
-static void decode_esc(const Program& program, u32 start, Instruction& i) {
-    u8 a = program.data[start];
-    u8 b = program.data[start + 1];
+static void decode_esc(std::span<const u8> program, u32 start, Instruction& i) {
+    u8 a = program[start];
+    u8 b = program[start + 1];
     u16 esc_opcode = (a & 0b111) | (b & 0b111'000);
     bool s = true;
 
@@ -505,16 +503,15 @@ static void decode_esc(const Program& program, u32 start, Instruction& i) {
     }
 }
 
-std::optional<Instruction> Instruction::decode_at(const Program& program, u32 start) {
-    if (program.size == 0 || program.data == nullptr) return {};
-    if (start >= program.size) return {};
+std::optional<Instruction> Instruction::decode_at(std::span<const u8> program, u32 start) {
+    if (start >= program.size()) return {};
 
     Instruction i = {};
     i.address = start;
     i.size = 1;
 
 read_after_prefix:
-    u8 a = program.data[start];
+    u8 a = program[start];
     if ((a & 0b1111'1100) == 0b1000'1000) {
         decode_rm_register(program, start, i, Mov);
     } else if ((a & 0b1111'1110) == 0b1100'0110) {
@@ -627,7 +624,7 @@ read_after_prefix:
         i.type = Wait;
     } else if (a == 0b1111'0000) {
         i.flags.lock = true;
-        if (start + 1 < program.size) {
+        if (start + 1 < program.size()) {
             ++start;
             goto read_after_prefix;
         }
@@ -635,7 +632,7 @@ read_after_prefix:
         decode_esc(program, start, i);
     } else if ((a & 0b1110'0110) == 0b0010'0110) {
         i.segment_override = lookup_segment_register((a >> 3) & 0b11);
-        if (start + 1 < program.size) {
+        if (start + 1 < program.size()) {
             ++start;
             goto read_after_prefix;
         }

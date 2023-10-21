@@ -3,8 +3,6 @@
 #include "common.hpp"
 #include <cstdio>
 
-struct Program;
-
 enum class Register : u32 {
     ax, cx, dx, bx,
     sp, bp, si, di,
@@ -228,7 +226,7 @@ struct Instruction {
 
     std::array<Operand, 2> operands = {};
 
-    static std::optional<Instruction> decode_at(const Program& program, u32 start);
+    static std::optional<Instruction> decode_at(std::span<const u8> program, u32 start);
 
     static constexpr const char* lookup_type(Type type) {
         auto i = static_cast<std::underlying_type_t<Type>>(type);

@@ -54,15 +54,14 @@ void Intel8086::Flags::print(FILE* out) const {
 // Normally not used x86 op code
 constexpr u8 inserted_halt_instruction = 0xf;
 
-void Intel8086::load_program(const Program& program) {
-    auto size = std::min((size_t)program.size, memory.size());
-    memcpy(memory.data(), program.data, size);
+void Intel8086::load_program(std::span<const u8> program) {
+    auto size = std::min(program.size(), memory.size());
+    memcpy(memory.data(), program.data(), size);
     if (memory.size() > size) memory[size] = inserted_halt_instruction;
 }
 
 error_code Intel8086::load_program(const char* filename) {
     UNWRAP_BARE(auto program, read_program(filename));
-    DEFER { delete[] program.data; };
     load_program(program);
     return {};
 }

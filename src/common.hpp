@@ -5,6 +5,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <system_error>
 #include <type_traits>
 

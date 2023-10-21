@@ -6,8 +6,6 @@
 
 #include "instruction.hpp"
 
-struct Program;
-
 class Intel8086 {
     using enum Register;
 public:
@@ -33,11 +31,11 @@ public:
     static constexpr u32 memory_size = 1 << 16;
 
     Intel8086() : memory(memory_size) {}
-    Intel8086(const Program& program) : Intel8086() {
+    Intel8086(std::span<const u8> program) : Intel8086() {
         load_program(program);
     }
 
-    void load_program(const Program& program);
+    void load_program(std::span<const u8> program);
     error_code load_program(const char* filename);
 
     template<typename T = u16>
