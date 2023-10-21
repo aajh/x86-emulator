@@ -30,7 +30,7 @@ public:
         void print(FILE* out = stdout) const;
     };
 
-    static constexpr u32 memory_size = 1 << 20;
+    static constexpr u32 memory_size = 1 << 16;
 
     Intel8086() : memory(memory_size) {}
     Intel8086(const Program& program) : Intel8086() {
@@ -76,14 +76,18 @@ public:
                 return get<T>(o.reg);
             case Immediate:
                 return o.immediate;
-            case Memory:
-                assert(false);
-                fprintf(stderr, "Unimplemented get operand 'Memory'\n");
-                return 0;
+            case Memory: {
+                auto address = calculate_address(o.memory);
+                u16 value = memory[address];
+                value |= memory[address + 1] << 8; // TODO: Support 8-bit operations
+                return value;
+            }
             case IpInc:
                 return o.ip_inc;
         }
     }
+
+    u16 calculate_address(const MemoryOperand& mo) const;
 
     u16 get_ip() const {
         return ip;
@@ -131,31 +135,15 @@ public:
                 fprintf(stderr, "Cannot modify an ip_inc value\n");
                 break;
             case Memory:
-                assert(false);
-                fprintf(stderr, "Unimplemented set operand 'Memory'\n");
+                auto address = calculate_address(o.memory);
+                memory[address] = value & 0xff;
+                memory[address + 1] = (value & 0xff00) >> 8; // TODO: Support 8-bit operations
                 break;
         }
     }
 
     void set(const Operand& o1, const Operand& o2) {
-        switch (o2.type) {
-            using enum Operand::Type;
-            case None:
-                fprintf(stderr, "Trying to set with 'None' operand\n");
-                assert(false);
-                break;
-            case Register:
-            case Immediate:
-                set(o1, get(o2));
-                break;
-            case IpInc:
-                fprintf(stderr, "Cannot set with an ip_inc value\n");
-                break;
-            case Memory:
-                assert(false);
-                fprintf(stderr, "Unimplemented set operand 'Memory'\n");
-                break;
-        }
+        set(o1, get(o2));
     }
 
     void set(Register destination, Register source) {

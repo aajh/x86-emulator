@@ -276,6 +276,9 @@ static constexpr std::array ce_simulator_tests = {
     "part1/listing_0047_challenge_flags",
     "part1/listing_0049_conditional_jumps",
     "part1/listing_0050_challenge_jumps",
+    "part1/listing_0051_memory_mov",
+    "part1/listing_0052_memory_add_loop",
+    "part1/listing_0053_add_loop_challenge",
 };
 
 static error_code run_tests() {

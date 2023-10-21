@@ -7,10 +7,10 @@
 
 #ifdef TESTING
 constexpr bool verbose_execution = false;
-#elif defined(VERBOSE_EXECUTION)
-constexpr bool verbose_execution = true;
-#else
+#elif defined(SILENT_EXECUTION)
 constexpr bool verbose_execution = false;
+#else
+constexpr bool verbose_execution = true;
 #endif
 
 #define UNIMPLEMENTED_INSTRUCTION\
@@ -21,14 +21,14 @@ constexpr bool verbose_execution = false;
 #define UNIMPLEMENTED_SHORT\
     if (!i.flags.wide) {\
         fflush(stdout);\
-        fprintf(stderr, "Unimplemented short version of instruction %s\n", i.name());\
+        fprintf(stderr, "\nUnimplemented short version of instruction %s\n", i.name());\
         return true;\
     }
 
 #define TWO_OPERANDS_REQUIRED\
     if (ocount != 2) {\
         fflush(stdout);\
-        fprintf(stderr, "Instruction %s requires two operands\n", i.name());\
+        fprintf(stderr, "\nInstruction %s requires two operands\n", i.name());\
         return true;\
     }
 
@@ -75,6 +75,30 @@ void Intel8086::print_state(FILE* out) const {
     fprintf(out, "\n");
 }
 
+u16 Intel8086::calculate_address(const MemoryOperand& mo) const {
+    switch (mo.eac) {
+        using E = EffectiveAddressCalculation;
+        case E::bx_si:
+            return get(bx) + get(si) + mo.displacement;
+        case E::bx_di:
+            return get(bx) + get(di) + mo.displacement;
+        case E::bp_si:
+            return get(bp) + get(si) + mo.displacement;
+        case E::bp_di:
+            return get(bp) + get(di) + mo.displacement;
+        case E::si:
+            return get(si) + mo.displacement;
+        case E::di:
+            return get(di) + mo.displacement;
+        case E::bp:
+            return get(bp) + mo.displacement;
+        case E::bx:
+            return get(bx) + mo.displacement;
+        case E::DirectAccess:
+            return mo.displacement;
+    }
+}
+
 error_code Intel8086::simulate(FILE* out) {
     DEFER { if (out) print_state(out); };
     while (true) {
@@ -106,48 +130,46 @@ bool Intel8086::simulate(const Instruction& i) {
 
     ip += i.size;
 
+    if (o1.type == Memory || o2.type == Memory) {
+        UNIMPLEMENTED_SHORT;
+    }
+
     switch (i.type) {
         case Mov:
             TWO_OPERANDS_REQUIRED;
-            if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
-                set(o1, o2);
-            } else {
-                UNIMPLEMENTED_INSTRUCTION;
-            }
+            set(o1, o2);
             break;
-        case Add:
+        case Add: {
             TWO_OPERANDS_REQUIRED;
             UNIMPLEMENTED_SHORT;
-            if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
-                u16 a = get(o1);
-                u16 b = get(o2);
 
-                u32 wide_result = a + b;
-                u16 result = wide_result & 0xffff;
+            u16 a = get(o1);
+            u16 b = get(o2);
 
-                set(o1, result);
-                set_flags(a, b, result, wide_result, false);
-            } else {
-                UNIMPLEMENTED_INSTRUCTION;
-            }
+            u32 wide_result = a + b;
+            u16 result = wide_result & 0xffff;
+
+            set(o1, result);
+            set_flags(a, b, result, wide_result, false);
+
             break;
+        }
         case Sub:
-        case Cmp:
+        case Cmp: {
             TWO_OPERANDS_REQUIRED;
             UNIMPLEMENTED_SHORT;
-            if (o1.type == Register && (o2.type == Register || o2.type == Immediate)) {
-                u16 a = get(o1);
-                u16 b = get(o2);
 
-                u32 wide_result = a - b;
-                u16 result = wide_result & 0xffff;
+            u16 a = get(o1);
+            u16 b = get(o2);
 
-                if (i.type == Sub) set(o1, result);
-                set_flags(a, b, result, wide_result, true);
-            } else {
-                UNIMPLEMENTED_INSTRUCTION;
-            }
+            u32 wide_result = a - b;
+            u16 result = wide_result & 0xffff;
+
+            if (i.type == Sub) set(o1, result);
+            set_flags(a, b, result, wide_result, true);
+
             break;
+        }
         case Jb:
             if (flags.c) ip += get<i16>(o1);
             break;
