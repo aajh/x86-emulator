@@ -25,6 +25,9 @@ public:
                    s == f.s && o == f.o && i == f.i && d == f.d &&
                    t == f.t;
         }
+        explicit operator bool() const {
+            return *this != Flags();
+        }
         void print(FILE* out = stdout) const;
     };
 

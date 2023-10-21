@@ -87,8 +87,11 @@ void Intel8086::print_state(FILE* out) const {
     }
     if (ip) fprintf(out, "%*s: 0x%.4x (%u)\n", padding, "ip", ip, ip);
 
-    fprintf(out, "%*s: ", padding, "flags");
-    flags.print(out);
+    if (flags) {
+        fprintf(out, "%*s: ", padding, "flags");
+        flags.print(out);
+    }
+
     fprintf(out, "\n");
 }
 
@@ -198,6 +201,16 @@ bool Intel8086::execute(const Instruction& i) {
         case Jp:
             ONE_OPERAND_REQUIRED;
             if (flags.p) ip += get<i16>(o1);
+            break;
+        case Loop:
+            ONE_OPERAND_REQUIRED;
+            set(cx, get(cx) - 1);
+            if (get(cx) != 0) ip += get<i16>(o1);
+            break;
+        case Loopz:
+            ONE_OPERAND_REQUIRED;
+            set(cx, get(cx) - 1);
+            if (get(cx) != 0 && flags.z) ip += get<i16>(o1);
             break;
         case Loopnz:
             ONE_OPERAND_REQUIRED;

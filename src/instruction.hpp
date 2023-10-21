@@ -166,7 +166,7 @@ struct Instruction {
         Jo, Jno, Jb, Jnb, Je, Jnz, Jbe, Ja,
         Js, Jns, Jp, Jnp, Jl, Jnl, Jle, Jg,
 
-        Loopnz, Loopz, Loop, Jcxz,
+        Loop, Loopz, Loopnz, Jcxz,
 
         Int, Int3, Into, Iret,
 
@@ -199,7 +199,7 @@ struct Instruction {
         "jo", "jno", "jb", "jnb", "je", "jnz", "jbe", "ja",
         "js", "jns", "jp", "jnp", "jl", "jnl", "jle", "jg",
 
-        "loopnz", "loopz", "loop", "jcxz",
+        "loop", "loopz", "loopnz", "jcxz",
 
         "int", "int3", "into", "iret",
 

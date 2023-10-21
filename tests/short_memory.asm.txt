@@ -3,4 +3,3 @@ Final registers:
       bx: 0x03e8 (1000)
       cx: 0x0042 (66)
       ip: 0x000e (14)
-   flags:
