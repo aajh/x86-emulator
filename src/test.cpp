@@ -51,6 +51,32 @@ static ReadLineResult read_line(const std::string_view& string, bool skip_whites
     };
 }
 
+static expected<std::string, error_code> assemble(const std::string& filename) {
+    std::string assembled_filename = "/tmp/x86-sim_nasm.out.XXXXXX";
+    auto assembled_fd = mkstemp(assembled_filename.data());
+    RET_ERRNO(assembled_fd == -1);
+    if (close(assembled_fd)) {
+        auto e = make_unexpected_errno();
+        unlink(assembled_filename.data());
+        return e;
+    }
+
+    printf("Assembling %s to %s\n", filename.data(), assembled_filename.data());
+    {
+        std::string command = "nasm -o ";
+        command += assembled_filename;
+        command += " ";
+        command += filename;
+
+        if (system(command.data())) {
+            unlink(assembled_filename.data());
+            return unexpected(Errc::ReassemblyError);
+        }
+    }
+
+    return assembled_filename;
+}
+
 static error_code test_disassembler(const std::string& filename) {
     UNWRAP_BARE(auto program, read_program(filename.data()));
     DEFER { delete[] program.data; };
@@ -125,38 +151,25 @@ static error_code test_disassembler(const std::string& filename) {
 }
 
 static error_code assemble_and_test_disassembler(const std::string& filename) {
-    std::string assembled_filename = "/tmp/x86-sim_nasm.out.XXXXXX";
-    auto assembled_fd = mkstemp(assembled_filename.data());
-    RET_BARE_ERRNO(assembled_fd == -1);
-    DEFER { close(assembled_fd); unlink(assembled_filename.data()); };
-
-    printf("Assembling %s to %s\n", filename.data(), assembled_filename.data());
-    {
-        std::string command = "nasm -o ";
-        command += assembled_filename;
-        command += " ";
-        command += filename;
-
-        if (system(command.data())) return Errc::ReassemblyError;
-    }
-
+    UNWRAP_BARE(auto assembled_filename, assemble(filename));
+    DEFER { unlink(assembled_filename.data()); };
     return test_disassembler(assembled_filename);
 }
 
-static error_code test_simulator(const std::string& filename) {
-    printf("Simulating program %s\n", filename.data());
+static error_code test_simulator(const std::string& program_filename, const std::string& expected_filename) {
+    printf("Simulating program %s\n", program_filename.data());
 
     Intel8086 x86;
-    RET_IF(x86.load_program(filename.data()));
+    RET_IF(x86.load_program(program_filename.data()));
     RET_IF(x86.simulate(nullptr));
 
-    UNWRAP_BARE(auto expected_output, read_file(filename + ".txt"));
+    UNWRAP_BARE(auto expected_output, read_file(expected_filename));
 
     const char register_line[] = "Final registers:";
     auto search_i = expected_output.find(register_line);
     if (search_i == std::string::npos) {
         fflush(stdout);
-        fprintf(stderr, "Didn't find the register line in the expected output file %s.txt\n", filename.data());
+        fprintf(stderr, "Didn't find the register line in the expected output file %s\n", expected_filename.data());
         return Errc::InvalidExpectedOutputFile;
     }
     search_i += std::size(register_line) - 1;
@@ -168,7 +181,7 @@ static error_code test_simulator(const std::string& filename) {
 
         const char flags[] = "flags:";
         if (expected_line.s.starts_with(flags)) {
-            auto expected_flags_string = expected_line.s.substr(std::size(flags));
+            auto expected_flags_string = expected_line.s.size() > std::size(flags) ? expected_line.s.substr(std::size(flags)) : std::string_view{};
 
             Intel8086::Flags expected_flags = {};
             for (auto f : expected_flags_string) {
@@ -256,6 +269,12 @@ static error_code test_simulator(const std::string& filename) {
     return ret;
 }
 
+static error_code assemble_and_test_simulator(const std::string& filename) {
+    UNWRAP_BARE(auto assembled_filename, assemble(filename));
+    DEFER { unlink(assembled_filename.data()); };
+    return test_simulator(assembled_filename, filename + ".txt");
+}
+
 static const char test_prefix[] = "../tests/";
 static const char ce_test_prefix[] = "../computer_enhance/perfaware/";
 
@@ -268,6 +287,9 @@ static constexpr std::array ce_disassembly_tests = {
     "part1/listing_0042_completionist_decode",
 };
 
+static constexpr std::array simulator_tests = {
+    "short_memory.asm",
+};
 static constexpr std::array ce_simulator_tests = {
     "part1/listing_0043_immediate_movs",
     "part1/listing_0044_register_movs",
@@ -302,10 +324,15 @@ static error_code run_tests() {
         Intel8086 x86;
         x86.test_set_get();
     }
+    for (auto test : simulator_tests) {
+        filename = test_prefix;
+        filename += test;
+        RET_IF(assemble_and_test_simulator(filename));
+    }
     for (auto test : ce_simulator_tests) {
         filename = ce_test_prefix;
         filename += test;
-        RET_IF(test_simulator(filename));
+        RET_IF(test_simulator(filename, filename + ".txt"));
     }
 
     return {};

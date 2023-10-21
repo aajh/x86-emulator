@@ -25,6 +25,13 @@ constexpr bool verbose_execution = true;
         return true;\
     }
 
+#define ONE_OPERAND_REQUIRED\
+    if (ocount == 0) {\
+        fflush(stdout);\
+        fprintf(stderr, "\nInstruction %s requires at least one operand\n", i.name());\
+        return true;\
+    }
+
 #define TWO_OPERANDS_REQUIRED\
     if (ocount != 2) {\
         fflush(stdout);\
@@ -63,7 +70,7 @@ error_code Intel8086::load_program(const char* filename) {
 void Intel8086::print_state(FILE* out) const {
     constexpr int padding = 8;
 
-    fprintf(out, "\nRegisters:\n");
+    fprintf(out, "\nFinal registers:\n");
     for (auto r : { ax, bx, cx, dx, sp, bp, si, di, es, cs, ss, ds }) {
         if (get(r) == 0) continue;
         fprintf(out, "%*s: 0x%.4x (%u)\n", padding, lookup_register(r), get(r), get(r));
@@ -130,26 +137,22 @@ bool Intel8086::simulate(const Instruction& i) {
 
     ip += i.size;
 
-    if (o1.type == Memory || o2.type == Memory) {
-        UNIMPLEMENTED_SHORT;
-    }
-
     switch (i.type) {
         case Mov:
             TWO_OPERANDS_REQUIRED;
-            set(o1, o2);
+            set(o1, o2, i.flags.wide);
             break;
         case Add: {
             TWO_OPERANDS_REQUIRED;
             UNIMPLEMENTED_SHORT;
 
-            u16 a = get(o1);
-            u16 b = get(o2);
+            u16 a = get(o1, true);
+            u16 b = get(o2, true);
 
             u32 wide_result = a + b;
             u16 result = wide_result & 0xffff;
 
-            set(o1, result);
+            set(o1, result, true);
             set_flags(a, b, result, wide_result, false);
 
             break;
@@ -159,30 +162,35 @@ bool Intel8086::simulate(const Instruction& i) {
             TWO_OPERANDS_REQUIRED;
             UNIMPLEMENTED_SHORT;
 
-            u16 a = get(o1);
-            u16 b = get(o2);
+            u16 a = get(o1, true);
+            u16 b = get(o2, true);
 
             u32 wide_result = a - b;
             u16 result = wide_result & 0xffff;
 
-            if (i.type == Sub) set(o1, result);
+            if (i.type == Sub) set(o1, result, true);
             set_flags(a, b, result, wide_result, true);
 
             break;
         }
         case Jb:
+            ONE_OPERAND_REQUIRED;
             if (flags.c) ip += get<i16>(o1);
             break;
         case Je:
+            ONE_OPERAND_REQUIRED;
             if (flags.z) ip += get<i16>(o1);
             break;
         case Jnz:
+            ONE_OPERAND_REQUIRED;
             if (!flags.z) ip += get<i16>(o1);
             break;
         case Jp:
+            ONE_OPERAND_REQUIRED;
             if (flags.p) ip += get<i16>(o1);
             break;
         case Loopnz:
+            ONE_OPERAND_REQUIRED;
             set(cx, get(cx) - 1);
             if (get(cx) != 0 && !flags.z) ip += get<i16>(o1);
             break;

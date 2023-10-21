@@ -65,7 +65,7 @@ public:
     }
 
     template<typename T = u16>
-    T get(const Operand& o) const {
+    T get(const Operand& o, bool wide_memory = false) const {
         switch (o.type) {
             using enum Operand::Type;
             case None:
@@ -79,7 +79,7 @@ public:
             case Memory: {
                 auto address = calculate_address(o.memory);
                 u16 value = memory[address];
-                value |= memory[address + 1] << 8; // TODO: Support 8-bit operations
+                if (wide_memory) value |= memory[address + 1] << 8;
                 return value;
             }
             case IpInc:
@@ -88,14 +88,8 @@ public:
     }
 
     u16 calculate_address(const MemoryOperand& mo) const;
-
-    u16 get_ip() const {
-        return ip;
-    }
-
-    const Flags& get_flags() const {
-        return flags;
-    }
+    u16 get_ip() const { return ip; }
+    const Flags& get_flags() const { return flags; }
 
     template<typename T = u16>
     void set(Register reg, T value) {
@@ -118,7 +112,7 @@ public:
         }
     }
 
-    void set(const Operand& o, u16 value) {
+    void set(const Operand& o, u16 value, bool wide_memory) {
         switch (o.type) {
             using enum Operand::Type;
             case None:
@@ -137,13 +131,13 @@ public:
             case Memory:
                 auto address = calculate_address(o.memory);
                 memory[address] = value & 0xff;
-                memory[address + 1] = (value & 0xff00) >> 8; // TODO: Support 8-bit operations
+                if (wide_memory) memory[address + 1] = (value & 0xff00) >> 8;
                 break;
         }
     }
 
-    void set(const Operand& o1, const Operand& o2) {
-        set(o1, get(o2));
+    void set(const Operand& o1, const Operand& o2, bool wide_memory) {
+        set(o1, get(o2, wide_memory), wide_memory);
     }
 
     void set(Register destination, Register source) {
