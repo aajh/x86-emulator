@@ -16,7 +16,7 @@ set(target_sources
     common.cpp
     instruction.cpp
     program.cpp
-    simulator.cpp
+    emulator.cpp
 )
 list(TRANSFORM target_sources PREPEND "src/")
 
@@ -26,27 +26,27 @@ function(configure_executable target)
     target_link_libraries(${target} PRIVATE exercise_compiler_flags)
 endfunction()
 
-add_executable(x86-sim)
-configure_executable(x86-sim)
-target_sources(x86-sim PRIVATE src/main.cpp)
+add_executable(x86-emulator)
+configure_executable(x86-emulator)
+target_sources(x86-emulator PRIVATE src/main.cpp)
 
 
 enable_testing()
 
-add_executable(x86-sim-test)
-configure_executable(x86-sim-test)
-target_sources(x86-sim-test PRIVATE src/test.cpp)
-target_compile_definitions(x86-sim-test PRIVATE TESTING)
-set_target_properties(x86-sim-test PROPERTIES EXCLUDE_FROM_ALL ON)
+add_executable(x86-emulator-test)
+configure_executable(x86-emulator-test)
+target_sources(x86-emulator-test PRIVATE src/test.cpp)
+target_compile_definitions(x86-emulator-test PRIVATE TESTING)
+set_target_properties(x86-emulator-test PROPERTIES EXCLUDE_FROM_ALL ON)
 
 add_test(test_build
     "${CMAKE_COMMAND}"
     --build "${CMAKE_BINARY_DIR}"
     --config "$<CONFIG>"
-    --target x86-sim-test
+    --target x86-emulator-test
     -j
     )
 set_tests_properties(test_build PROPERTIES FIXTURES_SETUP test_fixture)
 
-add_test(NAME test COMMAND x86-sim-test)
-set_tests_properties(test PROPERTIES FIXTURES_REQUIRED test_fixture)
+add_test(NAME tests COMMAND x86-emulator-test)
+set_tests_properties(tests PROPERTIES FIXTURES_REQUIRED test_fixture)

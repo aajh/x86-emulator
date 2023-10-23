@@ -100,7 +100,7 @@ enum class Errc {
     ReassemblyFailed,
     InvalidOutputFile,
     InvalidExpectedOutputFile,
-    SimulatingError,
+    EmulationError,
 };
 namespace std {
     template<> struct is_error_code_enum<Errc> : true_type {};

@@ -58,7 +58,7 @@ error_code disassemble_file(FILE* out, const char* filename) {
 }
 
 expected<std::string, error_code> assemble_program_to_tmp(const char* filename) {
-    std::string assembled_filename = "/tmp/x86-sim_nasm.out.XXXXXX";
+    std::string assembled_filename = "/tmp/x86-emulator.nasm.out.XXXXXX";
     auto assembled_fd = mkstemp(assembled_filename.data());
     RET_ERRNO(assembled_fd == -1);
     if (close(assembled_fd)) {

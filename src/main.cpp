@@ -4,7 +4,7 @@
 #include <cstring>
 
 #include "program.hpp"
-#include "simulator.hpp"
+#include "emulator.hpp"
 
 static int print_instructions_for_help(const char* name) {
     fprintf(stderr, "%s: type '%s --help' for help.\n", name, name);
@@ -25,7 +25,7 @@ enum class Option {
 int main(int argc, char** argv) {
     using enum Option;
 
-    auto name = argc > 0 ? argv[0] : "x86-sim";
+    auto name = argc > 0 ? argv[0] : "x86-emulator";
     auto option = None;
     std::string filename;
     bool dump_memory = false;
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
                 return EXIT_FAILURE;
             }
             if (dump_memory) {
-                if (auto e = x86.dump_memory("x86-sim.memory.data")) {
+                if (auto e = x86.dump_memory("x86-emulator.memory.data")) {
                     fprintf(stderr, "Error while dumping the memory: %s\n", e.message().data());
                     return EXIT_FAILURE;
                 }

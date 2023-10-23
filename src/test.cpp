@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #include "program.hpp"
-#include "simulator.hpp"
+#include "emulator.hpp"
 
 static expected<std::string, error_code> read_file(const std::string& filename) {
     auto file = fopen(filename.data(), "rb");
@@ -54,7 +54,7 @@ static ReadLineResult read_line(const std::string_view& string, bool skip_whites
 static error_code test_disassembler(const std::string& filename) {
     UNWRAP_BARE(auto program, read_program(filename.data()));
 
-    std::string disassembled_filename = "/tmp/x86-sim.asm.XXXXXX";
+    std::string disassembled_filename = "/tmp/x86-emulator.asm.XXXXXX";
     auto disassembled_fd = mkstemp(disassembled_filename.data());
     RET_BARE_ERRNO(disassembled_fd == -1);
     DEFER { close(disassembled_fd); unlink(disassembled_filename.data()); };
@@ -105,8 +105,8 @@ static error_code test_disassembler(const std::string& filename) {
     return {};
 }
 
-static error_code test_simulator(const std::string& program_filename, const std::string& expected_filename) {
-    printf("Simulating program %s\n", program_filename.data());
+static error_code test_emulator(const std::string& program_filename, const std::string& expected_filename) {
+    printf("Emulating program %s\n", program_filename.data());
 
     Intel8086 x86;
     RET_IF(x86.load_program(program_filename.data()));
@@ -176,7 +176,7 @@ static error_code test_simulator(const std::string& program_filename, const std:
                 fprintf(stderr, "' expected '");
                 expected_flags.print(stderr);
                 fprintf(stderr, "'\n");
-                return Errc::SimulatingError;
+                return Errc::EmulationError;
             }
             break;
         }
@@ -209,7 +209,7 @@ static error_code test_simulator(const std::string& program_filename, const std:
         if ((u16)expected_value != value) {
             fflush(stdout);
             fprintf(stderr, "Register %s has unexpected value 0x%.4x (expected 0x%.4hx)\n", expected_reg, value, (u16)expected_value);
-            ret = Errc::SimulatingError;
+            ret = Errc::EmulationError;
         }
 
         expected_line_end_i += expected_line.length;
@@ -224,10 +224,10 @@ static error_code assemble_and_test_disassembler(const std::string& filename) {
     return test_disassembler(assembled_filename);
 }
 
-static error_code assemble_and_test_simulator(const std::string& filename) {
+static error_code assemble_and_test_emulator(const std::string& filename) {
     UNWRAP_BARE(auto assembled_filename, assemble_program_to_tmp(filename.data()));
     DEFER { unlink_tmp_file(assembled_filename); };
-    return test_simulator(assembled_filename, filename + ".txt");
+    return test_emulator(assembled_filename, filename + ".txt");
 }
 
 static const char test_prefix[] = "../tests/";
@@ -242,12 +242,12 @@ static constexpr std::array ce_disassembly_tests = {
     "part1/listing_0042_completionist_decode",
 };
 
-static constexpr std::array simulator_tests = {
+static constexpr std::array emulator_tests = {
     "short_memory.asm",
     "function_call.asm",
     "recursive_call.asm",
 };
-static constexpr std::array ce_simulator_tests = {
+static constexpr std::array ce_emulator_tests = {
     "part1/listing_0043_immediate_movs",
     "part1/listing_0044_register_movs",
     "part1/listing_0045_challenge_register_movs",
@@ -276,20 +276,20 @@ static error_code run_tests() {
         RET_IF(test_disassembler(filename));
     }
 
-    printf("\nRunning simulator tests\n");
+    printf("\nRunning emulator tests\n");
     {
         Intel8086 x86;
         x86.test_set_get();
     }
-    for (auto test : simulator_tests) {
+    for (auto test : emulator_tests) {
         filename = test_prefix;
         filename += test;
-        RET_IF(assemble_and_test_simulator(filename));
+        RET_IF(assemble_and_test_emulator(filename));
     }
-    for (auto test : ce_simulator_tests) {
+    for (auto test : ce_emulator_tests) {
         filename = ce_test_prefix;
         filename += test;
-        RET_IF(test_simulator(filename, filename + ".txt"));
+        RET_IF(test_emulator(filename, filename + ".txt"));
     }
 
     return {};

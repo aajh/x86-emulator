@@ -3,7 +3,7 @@
 namespace {
     struct ErrCategory : std::error_category {
         const char* name() const noexcept override {
-            return "x64-sim";
+            return "x86-emulator";
         };
         std::string message(int ev) const override {
             using enum Errc;
@@ -20,8 +20,8 @@ namespace {
                     return "invalid output file";
                 case InvalidExpectedOutputFile:
                     return "invalid expected output file";
-                case SimulatingError:
-                    return "simulating error";
+                case EmulationError:
+                    return "emulation error";
             }
             return "(unrecognized error)";
         };

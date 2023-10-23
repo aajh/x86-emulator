@@ -1,4 +1,4 @@
-#include "simulator.hpp"
+#include "emulator.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
