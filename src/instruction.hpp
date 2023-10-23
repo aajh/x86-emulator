@@ -254,5 +254,6 @@ struct Instruction {
         swap(operands[0], operands[1]);
     }
 
+    u32 estimate_cycles(u32 total = 0, FILE* out = nullptr) const;
     void print_assembly(FILE* out = stdout) const;
 };

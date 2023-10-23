@@ -32,10 +32,11 @@ expected<std::vector<u8>, error_code> read_program(const char* filename) {
     return read_program(input_file);
 }
 
-error_code disassemble_program(FILE* out, std::span<const u8> program, const char* filename) {
+error_code disassemble_program(FILE* out, std::span<const u8> program, const char* filename, bool estimate_cycles) {
     if (filename != nullptr) fprintf(out, "; %s disassembly:\n", filename);
     fprintf(out, "bits 16\n\n");
 
+    u32 cycles = 0;
     u32 i = 0;
     while (i < program.size()) {
         UNWRAP_OR(auto instruction, Instruction::decode_at(program, i)) {
@@ -45,16 +46,21 @@ error_code disassemble_program(FILE* out, std::span<const u8> program, const cha
         }
 
         instruction.print_assembly(out);
+        if (estimate_cycles) {
+            fprintf(out, " ; ");
+            cycles += instruction.estimate_cycles(cycles, out);
+        }
         fprintf(out, "\n");
+
         i += instruction.size;
     }
 
     return {};
 }
 
-error_code disassemble_file(FILE* out, const char* filename) {
+error_code disassemble_file(FILE* out, const char* filename, bool estimate_cycles) {
     UNWRAP_BARE(auto program, read_program(filename));
-    return disassemble_program(out, program, filename);
+    return disassemble_program(out, program, filename, estimate_cycles);
 }
 
 expected<std::string, error_code> assemble_program_to_tmp(const char* filename) {

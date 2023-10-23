@@ -122,8 +122,10 @@ u16 Intel8086::calculate_address(const MemoryOperand& mo) const {
     }
 }
 
-error_code Intel8086::run() {
+error_code Intel8086::run(bool estimate_cycles) {
     DEFER { if constexpr (verbose_execution) print_state(); };
+
+    u32 cycles = 0;
     while (true) {
         if (memory[ip] == inserted_halt_instruction) break;
 
@@ -133,16 +135,23 @@ error_code Intel8086::run() {
             return Errc::UnknownInstruction;
         }
 
-        if (execute(instruction)) break;
+        if (execute(instruction, estimate_cycles, cycles)) break;
     }
+
     return {};
 }
 
-bool Intel8086::execute(const Instruction& i) {
+bool Intel8086::execute(const Instruction& i, bool estimate_cycles, u32& cycles) {
     using enum Instruction::Type;
     using enum Operand::Type;
 
-    if constexpr (verbose_execution) i.print_assembly();
+    if constexpr (verbose_execution) {
+        i.print_assembly();
+        if (estimate_cycles) {
+            printf(" ; ");
+            cycles += i.estimate_cycles(cycles, stdout);
+        }
+    }
     DEFER { if constexpr (verbose_execution) printf("\n"); };
 
     const auto& o1 = i.operands[0];

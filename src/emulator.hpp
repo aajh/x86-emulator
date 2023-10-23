@@ -146,7 +146,7 @@ public:
     }
 
     void print_state(FILE* out = stdout) const;
-    error_code run();
+    error_code run(bool estimate_cycles = false);
 
 #ifdef TESTING
     void assert_registers(u16 a, i16 b, u8 c, i8 d, u8 e, i8 f, bool print) const;
@@ -161,7 +161,7 @@ private:
 
     std::vector<u8> memory;
 
-    bool execute(const Instruction& i);
+    bool execute(const Instruction& i, bool estimate_cycles, u32& cycles);
     void set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub);
     void push(u16 value, bool wide = true);
     u16 pop(bool wide = true);

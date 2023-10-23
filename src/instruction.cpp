@@ -649,6 +649,99 @@ read_after_prefix:
 }
 
 
+u32 Instruction::estimate_cycles(u32 total, FILE* out) const {
+
+    u32 cycles = 0;
+    const MemoryOperand* memory_operand = nullptr;
+
+    const auto& o1 = operands[0];
+    const auto& o2 = operands[1];
+
+    switch (type) {
+        using enum Register;
+        using enum Operand::Type;
+        case Add:
+            if (o1.type == Register && o2.type == Register) {
+                cycles = 3;
+            } else if (o1.type == Register && o2.type == Memory) {
+                cycles = 9;
+                memory_operand = &o2.memory;
+            } else if (o1.type == Memory && o2.type == Register) {
+                cycles = 16;
+                memory_operand = &o1.memory;
+            } else if (o1.type == Register && o2.type == Immediate) {
+                cycles = 4;
+            } else if (o1.type == Memory && o2.type == Immediate) {
+                cycles = 17;
+                memory_operand = &o1.memory;
+            }
+            break;
+        case Mov:
+            if (o1.type == Register && o2.type == Register) {
+                cycles = 2;
+            } else if (o1.type == Register && o2.type == Memory) {
+                if ((o1.reg == ax || o1.reg == al) && o2.memory.eac == EffectiveAddressCalculation::DirectAccess && size == 2 + flags.wide) {
+                    cycles = 10;
+                } else {
+                    cycles = 8;
+                    memory_operand = &o2.memory;
+                }
+            } else if (o1.type == Memory && o2.type == Register) {
+                if ((o2.reg == ax || o2.reg == al) && o1.memory.eac == EffectiveAddressCalculation::DirectAccess && size == 2 + flags.wide) {
+                    cycles = 10;
+                } else {
+                    cycles = 9;
+                    memory_operand = &o1.memory;
+                }
+            } else if (o1.type == Register && o2.type == Immediate) {
+                cycles = 4;
+            }
+            break;
+        default:
+            break;
+    }
+    if (cycles == 0 && !memory_operand) {
+#ifndef NDEBUG
+        fprintf(stderr, "cycle_estimate: unimplemented instruction %s\n", name());
+#endif
+        return 0;
+    }
+
+    u32 ea = 0;
+    if (memory_operand) {
+        auto d = memory_operand->displacement;
+        switch (memory_operand->eac) {
+            using enum EffectiveAddressCalculation;
+            case DirectAccess:
+                ea = 6;
+                break;
+            case si:
+            case di:
+            case bp:
+            case bx:
+                ea = d ? 9 : 5;
+                break;
+            case bp_di:
+            case bx_si:
+                ea = d ? 11 : 7;
+                break;
+            case bp_si:
+            case bx_di:
+                ea = d ? 12 : 8;
+                break;
+        }
+    }
+    cycles += ea;
+
+    if (out) {
+        fprintf(out, "Clocks: +%u = %u", cycles, cycles + total);
+        if (ea) fprintf(out, " (%u + %uea)", cycles - ea, ea);
+    }
+
+    return cycles;
+}
+
+
 static void print_operand(FILE* out, const Instruction& i, bool operand_index) {
     auto& o = i.operands[operand_index];
     auto& oo = i.operands[!operand_index];

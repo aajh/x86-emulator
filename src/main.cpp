@@ -29,6 +29,7 @@ int main(int argc, char** argv) {
     auto option = None;
     std::string filename;
     bool dump_memory = false;
+    bool estimate_cycles = false;
 
     for (i32 i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--help") == 0) {
@@ -36,6 +37,7 @@ int main(int argc, char** argv) {
             printf(" -d, --disassemble <program>\tDisassemble the program\n");
             printf(" -e, --execute <program>    \tExecute the program\n");
             printf(" -D, --dump                 \tDump the memory after executing the program\n");
+            printf(" -C, --estimate-cycles      \tEstimate the number of cycles that instructions take\n");
             return EXIT_SUCCESS;
         } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--disassemble") == 0) {
             option = Disassemble;
@@ -49,6 +51,8 @@ int main(int argc, char** argv) {
             filename = argv[i];
         } else if (strcmp(argv[i], "-D") == 0 || strcmp(argv[i], "--dump") == 0) {
             dump_memory = true;
+        } else if (strcmp(argv[i], "-C") == 0 || strcmp(argv[i], "--estimate-cycles") == 0) {
+            estimate_cycles = true;
         } else {
             fprintf(stderr, "%s: option %s: is unknown\n", name, argv[i]);
             return print_instructions_for_help(name);
@@ -70,7 +74,7 @@ int main(int argc, char** argv) {
 
     switch (option) {
         case Disassemble:
-            if (auto e = disassemble_file(stdout, filename.data())) {
+            if (auto e = disassemble_file(stdout, filename.data(), estimate_cycles)) {
                 fprintf(stderr, "Error while disassembling file %s: %s\n", filename.data(), e.message().data());
                 return EXIT_FAILURE;
             }
@@ -81,7 +85,7 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Error while reading file %s: %s\n", filename.data(), e.message().data());
                 return EXIT_FAILURE;
             }
-            if (auto e = x86.run()) {
+            if (auto e = x86.run(estimate_cycles)) {
                 fprintf(stderr, "Error while executing file %s: %s\n", filename.data(), e.message().data());
                 return EXIT_FAILURE;
             }
