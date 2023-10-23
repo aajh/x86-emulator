@@ -1,0 +1,4 @@
+Final registers:
+      sp: 0xffff (65535)
+      ip: 0x0007 (7)
+   flags: PZ

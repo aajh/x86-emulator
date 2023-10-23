@@ -1,5 +1,6 @@
 #include "simulator.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 #include "instruction.hpp"
@@ -12,9 +13,11 @@ constexpr bool verbose_execution = true;
 #endif
 
 #define UNIMPLEMENTED_INSTRUCTION\
-    fflush(stdout);\
-    fprintf(stderr, "\nUnimplemented instruction %s\n", i.name());\
-    return true;
+    do {\
+        fflush(stdout);\
+        fprintf(stderr, "\nUnimplemented instruction %s\n", i.name());\
+        return true;\
+    } while (false)
 
 #define UNIMPLEMENTED_SHORT\
     if (!i.flags.wide) {\
@@ -186,6 +189,17 @@ bool Intel8086::execute(const Instruction& i) {
 
             break;
         }
+        case Call:
+            ONE_OPERAND_REQUIRED;
+            if (o1.type != IpInc) UNIMPLEMENTED_INSTRUCTION;
+            push(get(ip));
+            ip += o1.ip_inc;
+            break;
+        case Ret:
+            if (i.flags.intersegment) UNIMPLEMENTED_INSTRUCTION;
+            ip = pop();
+            if (o1.type == Immediate) set(sp, get(sp) + o1.immediate);
+            break;
         case Jb:
             ONE_OPERAND_REQUIRED;
             if (flags.c) ip += get<i16>(o1);
@@ -257,6 +271,20 @@ void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub
         flags.print();
         printf(" 0x%.4x 0x%.8x 0x%.4x 0x%.4x", result, wide_result, a, b);
     }
+}
+
+void Intel8086::push(u16 value, bool wide) {
+    set(sp, get(sp) - 2);
+    u32 s = get(sp);
+    memory[s] = value & 0xff;
+    if (wide) memory[s + 1] = value >> 8;
+}
+
+u16 Intel8086::pop(bool wide) {
+    u32 s = get(sp);
+    u16 value = memory[s] | (wide ? (memory[s + 1] << 8) : 0);
+    set(sp, get(s) + 2);
+    return value;
 }
 
 

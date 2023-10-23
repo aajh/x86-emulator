@@ -244,6 +244,8 @@ static constexpr std::array ce_disassembly_tests = {
 
 static constexpr std::array simulator_tests = {
     "short_memory.asm",
+    "function_call.asm",
+    "recursive_call.asm",
 };
 static constexpr std::array ce_simulator_tests = {
     "part1/listing_0043_immediate_movs",

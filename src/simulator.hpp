@@ -29,7 +29,9 @@ public:
 
     static constexpr u32 memory_size = 1 << 16;
 
-    Intel8086() : memory(memory_size) {}
+    Intel8086() : memory(memory_size) {
+        set(sp, 0xffff);
+    }
     Intel8086(std::span<const u8> program) : Intel8086() {
         load_program(program);
     }
@@ -161,4 +163,6 @@ private:
 
     bool execute(const Instruction& i);
     void set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub);
+    void push(u16 value, bool wide = true);
+    u16 pop(bool wide = true);
 };

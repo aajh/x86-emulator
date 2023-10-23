@@ -1,0 +1,4 @@
+Final registers:
+      ax: 0x0002 (2)
+      sp: 0xffff (65535)
+      ip: 0x0010 (16)
