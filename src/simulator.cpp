@@ -243,11 +243,11 @@ void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub
     lb_parity = !(lb_parity & 1);
 
     bool aux_carry = (a & 0xf0 + b & 0xf0) > ((a + b) & 0xf0);
-    bool aux_borrow = is_sub && ((a + b) & 0xf) > (a & 0xf + b & 0xf);
+    bool aux_borrow = ((a + b) & 0xf) > (a & 0xf + b & 0xf);
 
     flags.c = wide_result > std::numeric_limits<decltype(result)>::max();
     flags.p = lb_parity;
-    flags.a = aux_carry || aux_borrow; // FIXME: Doesn't always work
+    flags.a = is_sub ? aux_borrow : aux_carry;
     flags.z = result == 0;
     flags.s = result & (1 << 15);
     flags.o = same_sign && (a_signed != result_signed);

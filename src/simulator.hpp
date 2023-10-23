@@ -20,11 +20,7 @@ public:
         bool d : 1; // Direction
         bool t : 1; // Trap
 
-        bool operator==(const Flags& f) const {
-            return c == f.c && p == f.p && a == f.a && z == f.z &&
-                   s == f.s && o == f.o && i == f.i && d == f.d &&
-                   t == f.t;
-        }
+        bool operator==(const Flags& f) const = default;
         explicit operator bool() const {
             return *this != Flags();
         }
