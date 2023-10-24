@@ -79,21 +79,21 @@ static error_code test_disassembler(const std::string& filename) {
         return Errc::ReassemblyFailed;
     }
 
-    for (size_t i = 0; i < program.size(); ++i) {
+    for (i32 i = 0; i < (i32)program.size(); ++i) {
         if (program[i] != reassembled_program[i]) {
             fflush(stdout);
-            fprintf(stderr, "Reassembled program differs at position %zu (0x%x, original 0x%x)\n", i, reassembled_program[i], program[i]);
+            fprintf(stderr, "Reassembled program differs at position %d (0x%x, original 0x%x)\n", i, reassembled_program[i], program[i]);
 
             fprintf(stderr, "Reassembled bytes around the location are:");
             for (i32 j = -5; j < 6; ++j) {
-                if (i + j < 0 || i + j >= reassembled_program.size()) continue;
+                if (i + j < 0 || i + j >= (i32)reassembled_program.size()) continue;
                 fprintf(stderr, " 0x%X", reassembled_program[i + j]);
             }
             fprintf(stderr, "\n");
 
             fprintf(stderr, "Original bytes around the location are:   ");
             for (i32 j = -5; j < 6; ++j) {
-                if (i + j < 0 || i + j >= program.size()) continue;
+                if (i + j < 0 || i + j >= (i32)program.size()) continue;
                 fprintf(stderr, " 0x%X", program[i + j]);
             }
             fprintf(stderr, "\n");
@@ -185,7 +185,7 @@ static error_code test_emulator(const std::string& program_filename, const std::
         if (expected_line.s.size() < std::size(output_template) - 1 + 4) break;
 
         auto expected_value = strtol(expected_line.s.data() + std::size(output_template) - 1, nullptr, 16);
-        if (expected_value < 0 || expected_value > std::numeric_limits<u16>::max()) {
+        if (expected_value < 0 || expected_value > (i64)0xffff) {
             fflush(stdout);
             fprintf(stderr, "Register value parsing failed on line ");
             fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());

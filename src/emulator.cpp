@@ -121,6 +121,8 @@ u16 Intel8086::calculate_address(const MemoryOperand& mo) const {
         case E::DirectAccess:
             return mo.displacement;
     }
+    assert(false);
+    return 0;
 }
 
 error_code Intel8086::run(bool estimate_cycles) {

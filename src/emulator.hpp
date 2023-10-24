@@ -51,14 +51,14 @@ public:
         if (is_8bit_register(reg)) {
             using R = typename std::conditional<is_signed, i8, u8>::type;
             if (is_8bit_low_register(reg)) {
-                auto r1 = r - static_cast<R_int>(al);
+                auto r1 = r - static_cast<R_int>(Register::al);
                 return static_cast<R>(registers[r1] & 0xff);
             } else {
-                auto r1 = r - static_cast<R_int>(ah);
+                auto r1 = r - static_cast<R_int>(Register::ah);
                 return static_cast<R>((registers[r1] & 0xff00) >> 8);
             }
         } else if (is_segment_register(reg)) {
-            auto sr = r - static_cast<R_int>(es) + 8;
+            auto sr = r - static_cast<R_int>(Register::es) + 8;
             return static_cast<T>(registers[sr]);
         } else {
             return static_cast<T>(registers[r]);
@@ -86,6 +86,8 @@ public:
             case IpInc:
                 return o.ip_inc;
         }
+        assert(false);
+        return 0;
     }
 
     u16 calculate_address(const MemoryOperand& mo) const;
@@ -99,14 +101,14 @@ public:
 
         if (is_8bit_register(reg)) {
             if (is_8bit_low_register(reg)) {
-                auto r1 = r - static_cast<R>(al);
+                auto r1 = r - static_cast<R>(Register::al);
                 registers[r1] = static_cast<u16>((value & 0xff) | (registers[r1] & 0xff00));
             } else {
-                auto r1 = r - static_cast<R>(ah);
+                auto r1 = r - static_cast<R>(Register::ah);
                 registers[r1] = static_cast<u16>(((value & 0xff) << 8) | (registers[r1] & 0xff));
             }
         } else if (is_segment_register(reg)) {
-            auto sr = r - static_cast<R>(es) + 8;
+            auto sr = r - static_cast<R>(Register::es) + 8;
             registers[sr] = static_cast<u16>(value);
         } else {
             registers[r] = static_cast<u16>(value);
