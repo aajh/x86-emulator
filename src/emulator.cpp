@@ -250,9 +250,7 @@ bool Intel8086::execute(const Instruction& i, bool estimate_cycles, u32& cycles)
 }
 
 void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub) {
-    if (is_sub) b = -b;
-
-    bool same_sign = (a & (1 << 15)) == (b & (1 << 15));
+    bool same_sign = (a & (1 << 15)) == ((is_sub ? -b : b) & (1 << 15));
     bool a_signed = a & (1 << 15);
     bool result_signed = result & (1 << 15);
 
@@ -265,8 +263,8 @@ void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub
     lb_parity ^= lb_parity >> 8;
     lb_parity = !(lb_parity & 1);
 
-    bool aux_carry = (a & 0xf0 + b & 0xf0) > ((a + b) & 0xf0);
-    bool aux_borrow = ((a + b) & 0xf) > (a & 0xf + b & 0xf);
+    bool aux_carry = (u32)(a & 0xf) + (u32)(b & 0xf) > 0xf;
+    bool aux_borrow =  (i32)(a & 0xf) - (i32)(b & 0xf) < 0;
 
     flags.c = wide_result > std::numeric_limits<decltype(result)>::max();
     flags.p = lb_parity;
