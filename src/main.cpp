@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
         }
         filename = *assembled_filename;
     }
-    DEFER { if (assemble) unlink_tmp_file(filename); };
+    DEFER { if (assemble) (void)unlink_tmp_file(filename); };
 
     switch (option) {
         case Disassemble:

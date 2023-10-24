@@ -25,7 +25,7 @@ namespace {
             }
             return "(unrecognized error)";
         };
-    } err_category;
+    } const err_category;
 }
 
 error_code make_error_code(Errc e) {

@@ -132,13 +132,14 @@ error_code Intel8086::run(bool estimate_cycles) {
     while (true) {
         if (memory[ip] == inserted_halt_instruction) break;
 
-        UNWRAP_OR(auto instruction, Instruction::decode_at({ memory.data(), (u32)memory.size() }, ip)) {
+        auto instruction = Instruction::decode_at({ memory.data(), (u32)memory.size() }, ip);
+        if (!instruction) {
             fflush(stdout);
             fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", ip, memory[ip]);
             return Errc::UnknownInstruction;
         }
 
-        if (execute(instruction, estimate_cycles, cycles)) break;
+        if (execute(*instruction, estimate_cycles, cycles)) break;
     }
 
     return {};

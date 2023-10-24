@@ -90,7 +90,7 @@ struct Operand {
         i16 ip_inc;
     };
 
-    Operand() : type(Type::None) {}
+    Operand() {} // NOLINT(cppcoreguidelines-pro-type-member-init)
     Operand(Register reg) : type(Type::Register), reg(reg) {}
     Operand(MemoryOperand memory) : type(Type::Memory), memory(memory) {}
     Operand(u16 immediate) : type(Type::Immediate), immediate(immediate) {}

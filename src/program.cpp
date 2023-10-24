@@ -39,20 +39,21 @@ error_code disassemble_program(FILE* out, std::span<const u8> program, const cha
     u32 cycles = 0;
     u32 i = 0;
     while (i < program.size()) {
-        UNWRAP_OR(auto instruction, Instruction::decode_at(program, i)) {
+        auto instruction = Instruction::decode_at(program, i);
+        if (!instruction) {
             fflush(stdout);
             fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", i, program[i]);
             return Errc::UnknownInstruction;
         }
 
-        instruction.print_assembly(out);
+        instruction->print_assembly(out);
         if (estimate_cycles) {
             fprintf(out, " ; ");
-            cycles += instruction.estimate_cycles(cycles, out);
+            cycles += instruction->estimate_cycles(cycles, out);
         }
         fprintf(out, "\n");
 
-        i += instruction.size;
+        i += instruction->size;
     }
 
     return {};

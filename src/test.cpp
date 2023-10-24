@@ -69,7 +69,7 @@ static error_code test_disassembler(const std::string& filename) {
 
 
     UNWRAP_BARE(auto reassembled_filename, assemble_program_to_tmp(disassembled_filename.data()));
-    DEFER { unlink_tmp_file(reassembled_filename); };
+    DEFER { (void)unlink_tmp_file(reassembled_filename); };
 
     UNWRAP_BARE(auto reassembled_program, read_program(reassembled_filename.data()));
 
@@ -85,14 +85,15 @@ static error_code test_disassembler(const std::string& filename) {
             fprintf(stderr, "Reassembled program differs at position %d (0x%x, original 0x%x)\n", i, reassembled_program[i], program[i]);
 
             fprintf(stderr, "Reassembled bytes around the location are:");
-            for (i32 j = -5; j < 6; ++j) {
+            constexpr i32 window_size = 5;
+            for (i32 j = -window_size; j < window_size + 1; ++j) {
                 if (i + j < 0 || i + j >= (i32)reassembled_program.size()) continue;
                 fprintf(stderr, " 0x%X", reassembled_program[i + j]);
             }
             fprintf(stderr, "\n");
 
             fprintf(stderr, "Original bytes around the location are:   ");
-            for (i32 j = -5; j < 6; ++j) {
+            for (i32 j = -window_size; j < window_size + 1; ++j) {
                 if (i + j < 0 || i + j >= (i32)program.size()) continue;
                 fprintf(stderr, " 0x%X", program[i + j]);
             }
@@ -114,23 +115,23 @@ static error_code test_emulator(const std::string& program_filename, const std::
 
     UNWRAP_BARE(auto expected_output, read_file(expected_filename));
 
-    const char register_line[] = "Final registers:";
+    constexpr std::string_view register_line = "Final registers:";
     auto search_i = expected_output.find(register_line);
     if (search_i == std::string::npos) {
         fflush(stdout);
         fprintf(stderr, "Didn't find the register line in the expected output file %s\n", expected_filename.data());
         return Errc::InvalidExpectedOutputFile;
     }
-    search_i += std::size(register_line) - 1;
+    search_i += register_line.size();
 
     error_code ret = {};
     auto expected_line_end_i = search_i;
     while (expected_line_end_i < expected_output.size()) {
         auto expected_line = read_line({ expected_output.data() + expected_line_end_i, expected_output.size() - expected_line_end_i }, true);
 
-        const char flags[] = "flags:";
+        constexpr std::string_view flags = "flags:";
         if (expected_line.s.starts_with(flags)) {
-            auto expected_flags_string = expected_line.s.size() > std::size(flags) ? expected_line.s.substr(std::size(flags)) : std::string_view{};
+            auto expected_flags_string = expected_line.s.size() > flags.size() ? expected_line.s.substr(flags.size() + 1) : std::string_view{};
 
             Intel8086::Flags expected_flags = {};
             for (auto f : expected_flags_string) {
@@ -181,24 +182,25 @@ static error_code test_emulator(const std::string& program_filename, const std::
             break;
         }
 
-        const char output_template[] = "XX: 0x";
-        if (expected_line.s.size() < std::size(output_template) - 1 + 4) break;
+        constexpr std::string_view output_template = "XX: 0x";
+        if (expected_line.s.size() < output_template.size() + 4) break;
 
-        auto expected_value = strtol(expected_line.s.data() + std::size(output_template) - 1, nullptr, 16);
-        if (expected_value < 0 || expected_value > (i64)0xffff) {
+        constexpr int hex_base = 16;
+        auto expected_value = strtol(expected_line.s.data() + output_template.size(), nullptr, hex_base);
+        if (expected_value < 0 || expected_value > UINT16_MAX) {
             fflush(stdout);
             fprintf(stderr, "Register value parsing failed on line ");
             fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
             return Errc::InvalidExpectedOutputFile;
         }
 
-        char expected_reg[3] = { expected_line.s[0], expected_line.s[1], '\0' };
+        const std::string expected_reg(expected_line.s.substr(0, 2));
         u16 value = x86.get_ip();
 
-        if (strcmp(expected_reg, "ip") != 0) {
-            UNWRAP_OR(auto reg, lookup_register(expected_reg)) {
+        if (expected_reg != "ip") {
+            UNWRAP_OR(auto reg, lookup_register(expected_reg.data())) {
                 fflush(stdout);
-                fprintf(stderr, "Unknown register %s on line ", expected_reg);
+                fprintf(stderr, "Unknown register %s on line ", expected_reg.data());
                 fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
                 return Errc::InvalidExpectedOutputFile;
             }
@@ -208,7 +210,7 @@ static error_code test_emulator(const std::string& program_filename, const std::
 
         if ((u16)expected_value != value) {
             fflush(stdout);
-            fprintf(stderr, "Register %s has unexpected value 0x%.4x (expected 0x%.4hx)\n", expected_reg, value, (u16)expected_value);
+            fprintf(stderr, "Register %s has unexpected value 0x%.4x (expected 0x%.4hx)\n", expected_reg.data(), value, (u16)expected_value);
             ret = Errc::EmulationError;
         }
 
@@ -220,18 +222,18 @@ static error_code test_emulator(const std::string& program_filename, const std::
 
 static error_code assemble_and_test_disassembler(const std::string& filename) {
     UNWRAP_BARE(auto assembled_filename, assemble_program_to_tmp(filename.data()));
-    DEFER { unlink_tmp_file(assembled_filename); };
+    DEFER { (void)unlink_tmp_file(assembled_filename); };
     return test_disassembler(assembled_filename);
 }
 
 static error_code assemble_and_test_emulator(const std::string& filename) {
     UNWRAP_BARE(auto assembled_filename, assemble_program_to_tmp(filename.data()));
-    DEFER { unlink_tmp_file(assembled_filename); };
+    DEFER { (void)unlink_tmp_file(assembled_filename); };
     return test_emulator(assembled_filename, filename + ".txt");
 }
 
-static const char test_prefix[] = "../tests/";
-static const char ce_test_prefix[] = "../computer_enhance/perfaware/";
+static constexpr std::string_view test_prefix = "../tests/";
+static constexpr std::string_view ce_test_prefix = "../computer_enhance/perfaware/";
 
 static constexpr std::array disassembly_tests = {
     "direct_jmp_call_within_segment.asm",

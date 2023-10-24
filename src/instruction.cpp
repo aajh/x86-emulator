@@ -144,6 +144,9 @@ static void decode_rm_register(std::span<const u8> program, u32 start, Instructi
             i.operands[0] = lookup_register(w, rm);
             i.operands[1] = looked_reg;
             break;
+        default:
+            assert(false);
+            break;
     }
 
     if (!is_direct_access && d) i.swap_operands();
@@ -166,7 +169,7 @@ static void decode_immediate_to_rm(std::span<const u8> program, u32 start, Instr
     bool sign_extend_data = is_logic ? false : s;
     COMMON_MOD_RM_DEFINITIONS;
 
-    u16 data;
+    u16 data = 0;
     if (read_data(program, start + 2 + displacement_bytes, wide_data ? 2 : 1, sign_extend_data, data)) return;
 
     i.size = 2 + displacement_bytes + (wide_data ? 2 : 1);
@@ -189,7 +192,7 @@ static void decode_mov_immediate_to_register(std::span<const u8> program, u32 st
     bool w = a & 0b1000;
     u8 reg = a & 0b111;
 
-    u16 data;
+    u16 data = 0;
     if (read_data(program, start + 1, w, data)) return;
 
     i.size = w ? 3 : 2;
@@ -250,7 +253,7 @@ static void decode_immediate_to_accumulator(std::span<const u8> program, u32 sta
     u8 op = (a & 0b0011'1000) >> 3;
     bool w = a & 1;
 
-    u16 data;
+    u16 data = 0;
     if (read_data(program, start + 1, w, data)) return;
 
     i.size = w ? 3 : 2;
@@ -265,7 +268,7 @@ static void decode_ip_inc(std::span<const u8> program, u32 start, Instruction& i
     if (start + 1 >= program.size()) return;
 
     u8 a = program[start];
-    i8 ip_inc = program[start + 1];
+    i8 ip_inc = (i8)program[start + 1];
     u8 lookup_i = a & bitmask;
 
     i.size = 2;
@@ -368,7 +371,7 @@ static void decode_in_out(std::span<const u8> program, u32 start, Instruction& i
     bool fixed_port = !(a & 0b1000);
     bool w = a & 1;
 
-    u16 data;
+    u16 data = 0;
     if (fixed_port && read_data(program, start + 1, false, data)) return;
 
     i.size = 1 + fixed_port;
@@ -427,9 +430,9 @@ static void decode_rep(std::span<const u8> program, u32 start, Instruction& i) {
 }
 
 static void decode_direct_intersegment_call_jmp(std::span<const u8> program, u32 start, Instruction& i, Instruction::Type type) {
-    u16 ip;
+    u16 ip = 0;
     if (read_data(program, start + 1, true, ip)) return;
-    u16 cs;
+    u16 cs = 0;
     if (read_data(program, start + 3, true, cs)) return;
 
     i.size = 5;
@@ -798,9 +801,9 @@ static void print_operand(FILE* out, const Instruction& i, bool operand_index) {
             fprintf(out, "%hu", o.immediate);
             break;
         case IpInc:
-            i32 ip_inc = o.ip_inc + i.size;
-            if (i.flags.ip_inc) fprintf(out, "$%c%d", ip_inc < 0 ? '-' : '+', abs(ip_inc));
-            else fprintf(out, "%d", ip_inc + i.address);
+            i64 ip_inc = (i64)o.ip_inc + (i64)i.size;
+            if (i.flags.ip_inc) fprintf(out, "$%c%lld", ip_inc < 0 ? '-' : '+', abs(ip_inc));
+            else fprintf(out, "%lld", ip_inc + (i64)i.address);
             break;
     }
 }
