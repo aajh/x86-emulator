@@ -1,5 +1,6 @@
 #include "emulator.hpp"
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstring>
 
@@ -250,33 +251,30 @@ bool Intel8086::execute(const Instruction& i, bool estimate_cycles, u32& cycles)
 }
 
 void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub) {
-    bool same_sign = (a & (1 << 15)) == ((is_sub ? -b : b) & (1 << 15));
+    if constexpr (verbose_execution) {
+        printf(" ; Flags: ");
+        flags.print();
+        printf("->");
+    }
+
     bool a_signed = a & (1 << 15);
+    bool b_signed = (is_sub ? -b : b) & (1 << 15);
     bool result_signed = result & (1 << 15);
-
-    u16 low_byte = result & 0xff;
-
-    // Parity check from Hacker's Delight section 5-2
-    u16 lb_parity = low_byte ^ (low_byte >> 1);
-    lb_parity ^= lb_parity >> 2;
-    lb_parity ^= lb_parity >> 4;
-    lb_parity ^= lb_parity >> 8;
-    lb_parity = !(lb_parity & 1);
 
     bool aux_carry = (u32)(a & 0xf) + (u32)(b & 0xf) > 0xf;
     bool aux_borrow =  (i32)(a & 0xf) - (i32)(b & 0xf) < 0;
 
+    bool argument_same_sign = a_signed == b_signed;
+
     flags.c = wide_result > std::numeric_limits<decltype(result)>::max();
-    flags.p = lb_parity;
+    flags.p = std::popcount<u8>(result & 0xff) % 2 == 0;
     flags.a = is_sub ? aux_borrow : aux_carry;
     flags.z = result == 0;
     flags.s = result & (1 << 15);
-    flags.o = same_sign && (a_signed != result_signed);
+    flags.o = argument_same_sign && (a_signed != result_signed);
 
     if constexpr (verbose_execution) {
-        printf(" ; Flags: ");
         flags.print();
-        printf(" 0x%.4x 0x%.8x 0x%.4x 0x%.4x", result, wide_result, a, b);
     }
 }
 
