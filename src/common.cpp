@@ -14,10 +14,6 @@ namespace {
                     return "unknown instruction";
                 case ReassemblyError:
                     return "reassembly error";
-                case ReassemblyFailed:
-                    return "reassembly failed";
-                case InvalidOutputFile:
-                    return "invalid output file";
                 case InvalidExpectedOutputFile:
                     return "invalid expected output file";
                 case EmulationError:

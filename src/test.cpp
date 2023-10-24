@@ -1,6 +1,7 @@
 #include "common.hpp"
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <unistd.h>
@@ -10,15 +11,15 @@
 
 static expected<std::string, error_code> read_file(const std::string& filename) {
     auto file = fopen(filename.data(), "rb");
-    RET_ERRNO(file == nullptr);
+    if (file == nullptr) return make_unexpected_errno();
 
-    RET_ERRNO(fseek(file, 0, SEEK_END));
+    if (fseek(file, 0, SEEK_END)) return make_unexpected_errno();
 
     const auto ftell_result = ftell(file);
-    RET_ERRNO(ftell_result < 0);
+    if (ftell_result < 0) return make_unexpected_errno();
     const size_t size = ftell_result;
 
-    RET_ERRNO(fseek(file, 0, SEEK_SET));
+    if (fseek(file, 0, SEEK_SET)) return make_unexpected_errno();
 
     std::string content(size, '\0');
     if (fread(content.data(), 1, content.size(), file) != content.size()) {
@@ -56,11 +57,11 @@ static error_code test_disassembler(const std::string& filename) {
 
     std::string disassembled_filename = "/tmp/x86-emulator.asm.XXXXXX";
     auto disassembled_fd = mkstemp(disassembled_filename.data());
-    RET_BARE_ERRNO(disassembled_fd == -1);
+    if (disassembled_fd == -1) return make_error_code_errno();
     DEFER { close(disassembled_fd); unlink(disassembled_filename.data()); };
 
     auto disassembled_file = fdopen(disassembled_fd, "wb");
-    RET_BARE_ERRNO(disassembled_file == nullptr);
+    if (disassembled_file == nullptr) return make_error_code_errno();
     DEFER { fclose(disassembled_file); };
 
     printf("Disassembling %s to %s\n", filename.data(), disassembled_filename.data());
@@ -76,7 +77,7 @@ static error_code test_disassembler(const std::string& filename) {
     if (program.size() != reassembled_program.size()) {
         fflush(stdout);
         fprintf(stderr, "Reassembled program has different size (%lu, original %lu)\n", reassembled_program.size(), program.size());
-        return Errc::ReassemblyFailed;
+        return Errc::ReassemblyError;
     }
 
     for (i32 i = 0; i < (i32)program.size(); ++i) {
@@ -99,7 +100,7 @@ static error_code test_disassembler(const std::string& filename) {
             }
             fprintf(stderr, "\n");
 
-            return Errc::ReassemblyFailed;
+            return Errc::ReassemblyError;
         }
     }
 
@@ -187,7 +188,7 @@ static error_code test_emulator(const std::string& program_filename, const std::
 
         constexpr int hex_base = 16;
         auto expected_value = strtol(expected_line.s.data() + output_template.size(), nullptr, hex_base);
-        if (expected_value < 0 || expected_value > UINT16_MAX) {
+        if (expected_value < 0 || expected_value > std::numeric_limits<u16>::max()) {
             fflush(stdout);
             fprintf(stderr, "Register value parsing failed on line ");
             fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
@@ -198,14 +199,15 @@ static error_code test_emulator(const std::string& program_filename, const std::
         u16 value = x86.get_ip();
 
         if (expected_reg != "ip") {
-            UNWRAP_OR(auto reg, lookup_register(expected_reg.data())) {
+            auto reg = lookup_register(expected_reg.data());
+            if (!reg) {
                 fflush(stdout);
                 fprintf(stderr, "Unknown register %s on line ", expected_reg.data());
                 fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
                 return Errc::InvalidExpectedOutputFile;
             }
 
-            value = x86.get(reg);
+            value = x86.get(*reg);
         }
 
         if ((u16)expected_value != value) {

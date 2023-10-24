@@ -76,7 +76,7 @@ error_code Intel8086::dump_memory(const char* filename) {
     }
     DEFER { fclose(file); };
 
-    RET_BARE_ERRNO(fwrite(memory.data(), 1, memory.size(), file) != memory.size());
+    if (fwrite(memory.data(), 1, memory.size(), file) != memory.size()) return make_error_code_errno();
 
     return {};
 }

@@ -5,11 +5,11 @@
 #include "instruction.hpp"
 
 expected<std::vector<u8>, error_code> read_program(FILE* input_file) {
-    RET_ERRNO(fseek(input_file, 0, SEEK_END));
+    if (fseek(input_file, 0, SEEK_END)) return make_unexpected_errno();
 
     const auto ftell_result = ftell(input_file);
-    RET_ERRNO(ftell_result < 0);
-    RET_ERRNO(fseek(input_file, 0, SEEK_SET));
+    if (ftell_result < 0) return make_unexpected_errno();
+    if (fseek(input_file, 0, SEEK_SET)) return make_unexpected_errno();
 
     std::vector<u8> program(ftell_result);
 
@@ -67,7 +67,7 @@ error_code disassemble_file(FILE* out, const char* filename, bool estimate_cycle
 expected<std::string, error_code> assemble_program_to_tmp(const char* filename) {
     std::string assembled_filename = "/tmp/x86-emulator.nasm.out.XXXXXX";
     auto assembled_fd = mkstemp(assembled_filename.data());
-    RET_ERRNO(assembled_fd == -1);
+    if (assembled_fd == -1) return make_unexpected_errno();
     if (close(assembled_fd)) {
         auto e = make_unexpected_errno();
         unlink(assembled_filename.data());
@@ -91,6 +91,6 @@ expected<std::string, error_code> assemble_program_to_tmp(const char* filename) 
 }
 
 error_code unlink_tmp_file(const std::string& tmp_filename) {
-    RET_BARE_ERRNO(unlink(tmp_filename.data()));
+    if (unlink(tmp_filename.data())) return make_error_code_errno();
     return {};
 }
