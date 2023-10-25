@@ -203,8 +203,9 @@ static void decode_mov_immediate_to_register(std::span<const u8> program, u32 st
     i.operands[1] = data;
 }
 
-static void decode_mov_memory_accumulator(std::span<const u8> program, u32 start, Instruction& i, bool to_accumulator) {
+static void decode_mov_memory_accumulator(std::span<const u8> program, u32 start, Instruction& i) {
     u8 a = program[start];
+    bool to_accumulator = ~a & 0b10;
     bool w = a & 1;
     i16 address = 0;
     if (read_data(program, start + 1, w + 1, true, address)) return;
@@ -416,17 +417,8 @@ static void decode_string_instruction(std::span<const u8> program, u32 start, In
     u8 op = (a & 0b1110) >> 1;
     bool w = a & 1;
 
-    i.size = 1 + i.flags.rep;
     i.type = lookup<string_instructions>(op);
     i.flags.wide = w;
-}
-
-static void decode_rep(std::span<const u8> program, u32 start, Instruction& i) {
-    u8 a = program[start];
-    i.flags.rep = true;
-    i.flags.rep_nz = ~a & 1;
-
-    if (start + 1 < program.size()) decode_string_instruction(program, start + 1, i);
 }
 
 static void decode_direct_intersegment_call_jmp(std::span<const u8> program, u32 start, Instruction& i, Instruction::Type type) {
@@ -521,10 +513,8 @@ read_after_prefix:
         decode_immediate_to_rm(program, start, i, true); // MOV
     } else if ((a & 0b111'10000) == 0b1011'0000) {
         decode_mov_immediate_to_register(program, start, i);
-    } else if ((a & 0b1111'1110) == 0b1010'0000) {
-        decode_mov_memory_accumulator(program, start, i, true);
-    } else if ((a & 0b1111'1110) == 0b1010'0010) {
-        decode_mov_memory_accumulator(program, start, i, false);
+    } else if ((a & 0b1111'1100) == 0b1010'0000) {
+        decode_mov_memory_accumulator(program, start, i);
     } else if ((a & ~0b10) == 0b1000'1100) {
         decode_mov_rm_segment_register(program, start, i);
     } else if ((a & 0b1100'0100) == 0) {
@@ -598,7 +588,12 @@ read_after_prefix:
     } else if ((a & ~1) == 0b1010'1000) {
         decode_immediate_to_accumulator(program, start, i, Test);
     } else if ((a & ~1) == 0b1111'0010) {
-        decode_rep(program, start, i);
+        i.flags.rep = true;
+        i.flags.rep_nz = ~a & 1;
+        if (start + 1 < program.size()) {
+            ++start;
+            goto read_after_prefix;
+        }
     } else if ((a & ~0b1111) == 0b1010'0000) {
         decode_string_instruction(program, start, i);
     } else if (a == 0b1001'1010) {
