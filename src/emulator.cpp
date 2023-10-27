@@ -41,18 +41,6 @@ constexpr bool verbose_execution = true;
         return true;\
     }
 
-void Intel8086::Flags::print(FILE* out) const {
-    if (c) fmt::print(out, "C");
-    if (p) fmt::print(out, "P");
-    if (a) fmt::print(out, "A");
-    if (z) fmt::print(out, "Z");
-    if (s) fmt::print(out, "S");
-    if (o) fmt::print(out, "O");
-    if (i) fmt::print(out, "I");
-    if (d) fmt::print(out, "D");
-    if (t) fmt::print(out, "T");
-}
-
 // Normally not used x86 op code
 constexpr u8 inserted_halt_instruction = 0xf;
 
@@ -92,8 +80,7 @@ void Intel8086::print_state(FILE* out) const {
     if (ip) fmt::print(out, "{0:>{1}}: {2:#06x} ({2})\n", "ip", padding, ip);
 
     if (flags) {
-        fmt::print(out, "{:>{}}: ", "flags", padding);
-        flags.print(out);
+        fmt::print(out, "{:>{}}: {}", "flags", padding, flags);
     }
 
     fmt::print(out, "\n");
@@ -255,9 +242,7 @@ bool Intel8086::execute(const Instruction& i, bool estimate_cycles, u32& cycles)
 
 void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub) {
     if constexpr (verbose_execution) {
-        fmt::print(" ; Flags: ");
-        flags.print();
-        fmt::print("->");
+        fmt::print(" ; Flags: {}->", flags);
     }
 
     bool a_signed = a & (1 << 15);
@@ -277,7 +262,7 @@ void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub
     flags.o = argument_same_sign && (a_signed != result_signed);
 
     if constexpr (verbose_execution) {
-        flags.print();
+        fmt::print("{}", flags);
     }
 }
 

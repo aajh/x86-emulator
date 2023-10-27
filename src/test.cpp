@@ -174,11 +174,7 @@ static error_code test_emulator(const std::string& program_filename, const std::
 
             if (expected_flags != x86.get_flags()) {
                 fflush(stdout);
-                fmt::print(stderr, "Flags do not match: has '");
-                x86.get_flags().print(stderr);
-                fmt::print(stderr, "' expected '");
-                expected_flags.print(stderr);
-                fmt::print(stderr, "'\n");
+                fmt::print(stderr, "Flags do not match: has '{}' expected '{}'\n", x86.get_flags(), expected_flags);
                 return Errc::EmulationError;
             }
             break;

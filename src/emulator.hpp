@@ -25,7 +25,6 @@ public:
         explicit operator bool() const {
             return *this != Flags();
         }
-        void print(FILE* out = stdout) const;
     };
 
     static constexpr u32 memory_size = 1 << 16;
@@ -168,4 +167,24 @@ private:
     void set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub);
     void push(u16 value, bool wide = true);
     u16 pop(bool wide = true);
+};
+
+template <> struct fmt::formatter<Intel8086::Flags> {
+    constexpr format_parse_context::iterator parse(format_parse_context& ctx) {
+        return ctx.end();
+    }
+
+    format_context::iterator format(const Intel8086::Flags& f, format_context& ctx) {
+        auto out = ctx.out();
+        if (f.c) out = fmt::format_to(out, "C");
+        if (f.p) out = fmt::format_to(out, "P");
+        if (f.a) out = fmt::format_to(out, "A");
+        if (f.z) out = fmt::format_to(out, "Z");
+        if (f.s) out = fmt::format_to(out, "S");
+        if (f.o) out = fmt::format_to(out, "O");
+        if (f.i) out = fmt::format_to(out, "I");
+        if (f.d) out = fmt::format_to(out, "D");
+        if (f.t) out = fmt::format_to(out, "T");
+        return out;
+    }
 };
