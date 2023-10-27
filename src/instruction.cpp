@@ -649,7 +649,6 @@ read_after_prefix:
 
 
 u32 Instruction::estimate_cycles(u32 total, FILE* out) const {
-
     u32 cycles = 0;
     u32 transfers = 0;
     const MemoryOperand* memory_operand = nullptr;
@@ -765,7 +764,7 @@ u32 Instruction::estimate_cycles(u32 total, FILE* out) const {
 }
 
 
-static void print_operand(FILE* out, const Instruction& i, bool operand_index) {
+static fmt::format_context::iterator format_operand_to(fmt::format_context::iterator out, const Instruction& i, bool operand_index) {
     auto& o = i.operands[operand_index];
     auto& oo = i.operands[!operand_index];
 
@@ -774,61 +773,65 @@ static void print_operand(FILE* out, const Instruction& i, bool operand_index) {
         case None:
             break;
         case Register:
-            fmt::print(out, "{}", lookup_register(o.reg));
+            fmt::format_to(out, "{}", lookup_register(o.reg));
             break;
         case Memory:
             if (operand_index == 0 && (oo.type == None || oo.type == Immediate || i.is_shift()) && (i.type != Call && i.type != Jmp)) {
-                fmt::print(out, "{} ", i.flags.wide ? "word" : "byte");
+                fmt::format_to(out, "{} ", i.flags.wide ? "word" : "byte");
             }
             if (i.segment_override) {
-                fmt::print(out, "{}:", lookup_register(*i.segment_override));
+                fmt::format_to(out, "{}:", lookup_register(*i.segment_override));
             }
             if (o.memory.eac == EffectiveAddressCalculation::DirectAccess) {
-                fmt::print(out, "[{}]", o.memory.displacement);
+                fmt::format_to(out, "[{}]", o.memory.displacement);
                 break;
             }
-            fmt::print(out, "[{}", lookup_effective_address_calculation(o.memory.eac));
+            fmt::format_to(out, "[{}", lookup_effective_address_calculation(o.memory.eac));
             if (o.memory.displacement) {
-                fmt::print(out, " {} {}", o.memory.displacement < 0 ? '-' : '+', abs(o.memory.displacement));
+                fmt::format_to(out, " {} {}", o.memory.displacement < 0 ? '-' : '+', abs(o.memory.displacement));
             }
-            fmt::print(out, "]");
+            fmt::format_to(out, "]");
             break;
         case Immediate:
-            fmt::print(out, "{}", o.immediate);
+            fmt::format_to(out, "{}", o.immediate);
             break;
         case IpInc:
             i64 ip_inc = (i64)o.ip_inc + (i64)i.size;
-            if (i.flags.ip_inc) fmt::print(out, "${:+}", ip_inc);
-            else fmt::print(out, "{}", ip_inc + (i64)i.address);
+            if (i.flags.ip_inc) fmt::format_to(out, "${:+}", ip_inc);
+            else fmt::format_to(out, "{}", ip_inc + (i64)i.address);
             break;
     }
+
+    return out;
 }
 
-void Instruction::print_assembly(FILE* out) const {
-    if (type == Invalid) return;
+fmt::format_context::iterator Instruction::format_to(fmt::format_context::iterator out) const {
+    if (type == Invalid) return out;
 
-    if (flags.rep) fmt::print(out, "{}", flags.rep_nz ? "repnz " : "rep ");
-    if (flags.lock) fmt::print(out, "lock ");
+    if (flags.rep) fmt::format_to(out, "{}", flags.rep_nz ? "repnz " : "rep ");
+    if (flags.lock) fmt::format_to(out, "lock ");
 
-    fmt::print(out, "{}", name());
+    fmt::format_to(out, "{}", name());
 
     if (flags.intersegment) {
         if (type == Ret) {
-            fmt::print(out, "f");
+            fmt::format_to(out, "f");
         } else if ((type == Call || type == Jmp) && operands[1].type == Operand::Type::None) {
-            fmt::print(out, " far");
+            fmt::format_to(out, " far");
         }
     }
-    if (flags.short_jmp) fmt::print(out, " short");
-    if (is_string_manipulation()) fmt::print(out, "{}", flags.wide ? 'w' : 'b');
+    if (flags.short_jmp) fmt::format_to(out, " short");
+    if (is_string_manipulation()) fmt::format_to(out, "{}", flags.wide ? 'w' : 'b');
 
     if (operands[0].type != Operand::Type::None) {
-        fmt::print(out, " ");
-        print_operand(out, *this, 0);
+        fmt::format_to(out, " ");
+        out = format_operand_to(out, *this, 0);
 
         if (operands[1].type != Operand::Type::None) {
-            fmt::print(out, "{}", !flags.intersegment ? ", " : ":");
-            print_operand(out, *this, 1);
+            fmt::format_to(out, "{}", !flags.intersegment ? ", " : ":");
+            out = format_operand_to(out, *this, 1);
         }
     }
+
+    return out;
 }

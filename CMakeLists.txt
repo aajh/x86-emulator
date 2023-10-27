@@ -4,6 +4,9 @@ project(x86Emulator)
 
 find_package(fmt 10.0.0 QUIET)
 if(NOT fmt_FOUND)
+    if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24")
+        cmake_policy(SET CMP0135 NEW)
+    endif()
     include(FetchContent)
     set(FETCHCONTENT_QUIET False)
     FetchContent_Declare(

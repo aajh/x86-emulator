@@ -171,20 +171,20 @@ private:
 
 template <> struct fmt::formatter<Intel8086::Flags> {
     constexpr format_parse_context::iterator parse(format_parse_context& ctx) {
-        return ctx.end();
+        return ctx.begin();
     }
 
     format_context::iterator format(const Intel8086::Flags& f, format_context& ctx) {
         auto out = ctx.out();
-        if (f.c) out = fmt::format_to(out, "C");
-        if (f.p) out = fmt::format_to(out, "P");
-        if (f.a) out = fmt::format_to(out, "A");
-        if (f.z) out = fmt::format_to(out, "Z");
-        if (f.s) out = fmt::format_to(out, "S");
-        if (f.o) out = fmt::format_to(out, "O");
-        if (f.i) out = fmt::format_to(out, "I");
-        if (f.d) out = fmt::format_to(out, "D");
-        if (f.t) out = fmt::format_to(out, "T");
+        if (f.c) format_to(out, "C");
+        if (f.p) format_to(out, "P");
+        if (f.a) format_to(out, "A");
+        if (f.z) format_to(out, "Z");
+        if (f.s) format_to(out, "S");
+        if (f.o) format_to(out, "O");
+        if (f.i) format_to(out, "I");
+        if (f.d) format_to(out, "D");
+        if (f.t) format_to(out, "T");
         return out;
     }
 };

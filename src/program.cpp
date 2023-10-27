@@ -47,7 +47,7 @@ error_code disassemble_program(FILE* out, std::span<const u8> program, const cha
             return Errc::UnknownInstruction;
         }
 
-        instruction->print_assembly(out);
+        fmt::print(out, "{}", *instruction);
         if (estimate_cycles) {
             fmt::print(out, " ; ");
             cycles += instruction->estimate_cycles(cycles, out);

@@ -3,6 +3,7 @@
 #include "common.hpp"
 #include <cstdio>
 #include <cstring>
+#include <fmt/core.h>
 
 enum class Register : u32 {
     ax, cx, dx, bx,
@@ -256,5 +257,14 @@ struct Instruction {
     }
 
     u32 estimate_cycles(u32 total = 0, FILE* out = nullptr) const;
-    void print_assembly(FILE* out = stdout) const;
+    fmt::format_context::iterator format_to(fmt::format_context::iterator out) const;
+};
+
+template <> struct fmt::formatter<Instruction> {
+    constexpr format_parse_context::iterator parse(format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    format_context::iterator format(const Instruction& i, format_context& ctx) {
+        return i.format_to(ctx.out());
+    }
 };

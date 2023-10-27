@@ -7,7 +7,7 @@ Tested on macOS 12.6 with Apple Clang 13.1.6 and Ubuntu 22.04.3 LTS with GNU C++
 
 
 ## Compiling
-This project requires CMake 3.22 and a C++20 compiler. This project has no external dependecies.
+This project requires CMake 3.22 and a C++20 compiler. Additionally, `nasm` assebmler is required for the tests and automatic assembling of input programs.
 
 The requirements for building and testing can be installed with one of the following ways:
 ```

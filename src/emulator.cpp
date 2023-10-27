@@ -137,7 +137,7 @@ bool Intel8086::execute(const Instruction& i, bool estimate_cycles, u32& cycles)
     using enum Operand::Type;
 
     if constexpr (verbose_execution) {
-        i.print_assembly();
+        fmt::print("{}", i);
         if (estimate_cycles) {
             fmt::print(" ; ");
             cycles += i.estimate_cycles(cycles, stdout);
