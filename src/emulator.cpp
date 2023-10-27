@@ -16,41 +16,41 @@ constexpr bool verbose_execution = true;
 #define UNIMPLEMENTED_INSTRUCTION\
     do {\
         fflush(stdout);\
-        fprintf(stderr, "\nUnimplemented instruction %s\n", i.name());\
+        fmt::print(stderr, "\nUnimplemented instruction {}\n", i.name());\
         return true;\
     } while (false)
 
 #define UNIMPLEMENTED_SHORT\
     if (!i.flags.wide) {\
         fflush(stdout);\
-        fprintf(stderr, "\nUnimplemented short version of instruction %s\n", i.name());\
+        fmt::print(stderr, "\nUnimplemented short version of instruction {}\n", i.name());\
         return true;\
     }
 
 #define ONE_OPERAND_REQUIRED\
     if (ocount == 0) {\
         fflush(stdout);\
-        fprintf(stderr, "\nInstruction %s requires at least one operand\n", i.name());\
+        fmt::print(stderr, "\nInstruction {} requires at least one operand\n", i.name());\
         return true;\
     }
 
 #define TWO_OPERANDS_REQUIRED\
     if (ocount != 2) {\
         fflush(stdout);\
-        fprintf(stderr, "\nInstruction %s requires two operands\n", i.name());\
+        fmt::print(stderr, "\nInstruction {} requires two operands\n", i.name());\
         return true;\
     }
 
 void Intel8086::Flags::print(FILE* out) const {
-    if (c) fprintf(out, "C");
-    if (p) fprintf(out, "P");
-    if (a) fprintf(out, "A");
-    if (z) fprintf(out, "Z");
-    if (s) fprintf(out, "S");
-    if (o) fprintf(out, "O");
-    if (i) fprintf(out, "I");
-    if (d) fprintf(out, "D");
-    if (t) fprintf(out, "T");
+    if (c) fmt::print(out, "C");
+    if (p) fmt::print(out, "P");
+    if (a) fmt::print(out, "A");
+    if (z) fmt::print(out, "Z");
+    if (s) fmt::print(out, "S");
+    if (o) fmt::print(out, "O");
+    if (i) fmt::print(out, "I");
+    if (d) fmt::print(out, "D");
+    if (t) fmt::print(out, "T");
 }
 
 // Normally not used x86 op code
@@ -71,7 +71,7 @@ error_code Intel8086::load_program(const char* filename) {
 error_code Intel8086::dump_memory(const char* filename) {
     FILE* file = fopen(filename, "wb");
     if (!file) {
-        fprintf(stderr, "Couldn't open file %s\n", filename);
+        fmt::print(stderr, "Couldn't open file {}\n", filename);
         return make_error_code_errno();
     }
     DEFER { fclose(file); };
@@ -84,19 +84,19 @@ error_code Intel8086::dump_memory(const char* filename) {
 void Intel8086::print_state(FILE* out) const {
     constexpr int padding = 8;
 
-    fprintf(out, "\nFinal registers:\n");
+    fmt::print(out, "\nFinal registers:\n");
     for (auto r : { ax, bx, cx, dx, sp, bp, si, di, es, cs, ss, ds }) {
         if (get(r) == 0) continue;
-        fprintf(out, "%*s: 0x%.4x (%u)\n", padding, lookup_register(r), get(r), get(r));
+        fmt::print(out, "{0:>{1}}: {2:#06x} ({2})\n", lookup_register(r), padding, get(r));
     }
-    if (ip) fprintf(out, "%*s: 0x%.4x (%u)\n", padding, "ip", ip, ip);
+    if (ip) fmt::print(out, "{0:>{1}}: {2:#06x} ({2})\n", "ip", padding, ip);
 
     if (flags) {
-        fprintf(out, "%*s: ", padding, "flags");
+        fmt::print(out, "{:>{}}: ", "flags", padding);
         flags.print(out);
     }
 
-    fprintf(out, "\n");
+    fmt::print(out, "\n");
 }
 
 u16 Intel8086::calculate_address(const MemoryOperand& mo) const {
@@ -135,7 +135,7 @@ error_code Intel8086::run(bool estimate_cycles) {
         auto instruction = Instruction::decode_at({ memory.data(), (u32)memory.size() }, ip);
         if (!instruction) {
             fflush(stdout);
-            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", ip, memory[ip]);
+            fmt::print(stderr, "Unknown instruction at location {} (first byte {:#x})\n", ip, memory[ip]);
             return Errc::UnknownInstruction;
         }
 
@@ -152,11 +152,11 @@ bool Intel8086::execute(const Instruction& i, bool estimate_cycles, u32& cycles)
     if constexpr (verbose_execution) {
         i.print_assembly();
         if (estimate_cycles) {
-            printf(" ; ");
+            fmt::print(" ; ");
             cycles += i.estimate_cycles(cycles, stdout);
         }
     }
-    DEFER { if constexpr (verbose_execution) printf("\n"); };
+    DEFER { if constexpr (verbose_execution) fmt::print("\n"); };
 
     const auto& o1 = i.operands[0];
     const auto& o2 = i.operands[1];
@@ -255,9 +255,9 @@ bool Intel8086::execute(const Instruction& i, bool estimate_cycles, u32& cycles)
 
 void Intel8086::set_flags(u16 a, u16 b, u16 result, u32 wide_result, bool is_sub) {
     if constexpr (verbose_execution) {
-        printf(" ; Flags: ");
+        fmt::print(" ; Flags: ");
         flags.print();
-        printf("->");
+        fmt::print("->");
     }
 
     bool a_signed = a & (1 << 15);
@@ -299,8 +299,8 @@ u16 Intel8086::pop(bool wide) {
 #ifdef TESTING
 void Intel8086::assert_registers(u16 a, i16 b, u8 c, i8 d, u8 e, i8 f, bool print) const {
     if (print) {
-        printf("ax: 0x%hx 0x%hx, al: 0x%hx 0x%hx, ah: 0x%hx 0x%hx\n", get<u16>(ax), get<i16>(ax), get<u16>(al), get<i16>(al), get<u16>(ah), get<i16>(ah));
-        printf("ax: %u %d, al: %u %d, ah: %u %d\n\n", get<u16>(ax), get<i16>(ax), get(al), get<i16>(al), get(ah), get<i16>(ah));
+        fmt::print("ax: {:#x}, al: {:#x}, ah: {:#x}\n", get<u16>(ax), get<u16>(al), get<u16>(ah));
+        fmt::print("ax: {} {}, al: {} {}, ah: {} {}\n\n", get<u16>(ax), get<i16>(ax), get(al), get<i16>(al), get(ah), get<i16>(ah));
     }
     test_assert(get<u16>(ax), a);
     test_assert(get<i16>(ax), b);

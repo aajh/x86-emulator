@@ -27,6 +27,6 @@ if [ -z "$1" ]; then
     arguments="src/*.cpp src/*.hpp"
 fi
 
-disabled_checks="-cppcoreguidelines-pro-type-vararg,-cppcoreguidelines-pro-bounds-pointer-arithmetic,-cppcoreguidelines-owning-memory,-cppcoreguidelines-avoid-magic-numbers,-cppcoreguidelines-avoid-do-while,-cppcoreguidelines-pro-bounds-constant-array-index,-cppcoreguidelines-avoid-goto,-cppcoreguidelines-pro-type-union-access,-bugprone-easily-swappable-parameters,-bugprone-branch-clone"
+disabled_checks="-cppcoreguidelines-pro-bounds-pointer-arithmetic,-cppcoreguidelines-owning-memory,-cppcoreguidelines-avoid-magic-numbers,-cppcoreguidelines-avoid-do-while,-cppcoreguidelines-pro-bounds-constant-array-index,-cppcoreguidelines-avoid-goto,-cppcoreguidelines-pro-type-union-access,-bugprone-easily-swappable-parameters,-bugprone-branch-clone"
 
 $clang_tidy_cmd -checks="-*,bugprone-*,cppcoreguidelines-*,clang-analyzer-*,performance-*,${disabled_checks}" -p build $arguments

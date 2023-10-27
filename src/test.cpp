@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <unistd.h>
+#include <fmt/core.h>
 
 #include "program.hpp"
 #include "emulator.hpp"
@@ -64,7 +65,7 @@ static error_code test_disassembler(const std::string& filename) {
     if (disassembled_file == nullptr) return make_error_code_errno();
     DEFER { fclose(disassembled_file); };
 
-    printf("Disassembling %s to %s\n", filename.data(), disassembled_filename.data());
+    fmt::print("Disassembling {} to {}\n", filename, disassembled_filename);
     RET_IF(disassemble_program(disassembled_file, program));
     fflush(disassembled_file);
 
@@ -76,29 +77,29 @@ static error_code test_disassembler(const std::string& filename) {
 
     if (program.size() != reassembled_program.size()) {
         fflush(stdout);
-        fprintf(stderr, "Reassembled program has different size (%lu, original %lu)\n", reassembled_program.size(), program.size());
+        fmt::print(stderr, "Reassembled program has different size ({}, original {})\n", reassembled_program.size(), program.size());
         return Errc::ReassemblyError;
     }
 
     for (i32 i = 0; i < (i32)program.size(); ++i) {
         if (program[i] != reassembled_program[i]) {
             fflush(stdout);
-            fprintf(stderr, "Reassembled program differs at position %d (0x%x, original 0x%x)\n", i, reassembled_program[i], program[i]);
+            fmt::print(stderr, "Reassembled program differs at position {} ({:#x}, original {:#x})\n", i, reassembled_program[i], program[i]);
 
-            fprintf(stderr, "Reassembled bytes around the location are:");
+            fmt::print(stderr, "Reassembled bytes around the location are:");
             constexpr i32 window_size = 5;
             for (i32 j = -window_size; j < window_size + 1; ++j) {
                 if (i + j < 0 || i + j >= (i32)reassembled_program.size()) continue;
-                fprintf(stderr, " 0x%X", reassembled_program[i + j]);
+                fmt::print(stderr, " {:#x}", reassembled_program[i + j]);
             }
-            fprintf(stderr, "\n");
+            fmt::print(stderr, "\n");
 
-            fprintf(stderr, "Original bytes around the location are:   ");
+            fmt::print(stderr, "Original bytes around the location are:   ");
             for (i32 j = -window_size; j < window_size + 1; ++j) {
                 if (i + j < 0 || i + j >= (i32)program.size()) continue;
-                fprintf(stderr, " 0x%X", program[i + j]);
+                fmt::print(stderr, " {:#x}", program[i + j]);
             }
-            fprintf(stderr, "\n");
+            fmt::print(stderr, "\n");
 
             return Errc::ReassemblyError;
         }
@@ -108,7 +109,7 @@ static error_code test_disassembler(const std::string& filename) {
 }
 
 static error_code test_emulator(const std::string& program_filename, const std::string& expected_filename) {
-    printf("Emulating program %s\n", program_filename.data());
+    fmt::print("Emulating program {}\n", program_filename);
 
     Intel8086 x86;
     RET_IF(x86.load_program(program_filename.data()));
@@ -120,7 +121,7 @@ static error_code test_emulator(const std::string& program_filename, const std::
     auto search_i = expected_output.find(register_line);
     if (search_i == std::string::npos) {
         fflush(stdout);
-        fprintf(stderr, "Didn't find the register line in the expected output file %s\n", expected_filename.data());
+        fmt::print(stderr, "Didn't find the register line in the expected output file {}\n", expected_filename);
         return Errc::InvalidExpectedOutputFile;
     }
     search_i += register_line.size();
@@ -166,18 +167,18 @@ static error_code test_emulator(const std::string& program_filename, const std::
                         break;
                     default:
                         fflush(stdout);
-                        fprintf(stderr, "Unknown flag '%c' in the expected output file.\n", f);
+                        fmt::print(stderr, "Unknown flag '{}' in the expected output file.\n", f);
                         return Errc::InvalidExpectedOutputFile;
                 }
             }
 
             if (expected_flags != x86.get_flags()) {
                 fflush(stdout);
-                fprintf(stderr, "Flags do not match: has '");
+                fmt::print(stderr, "Flags do not match: has '");
                 x86.get_flags().print(stderr);
-                fprintf(stderr, "' expected '");
+                fmt::print(stderr, "' expected '");
                 expected_flags.print(stderr);
-                fprintf(stderr, "'\n");
+                fmt::print(stderr, "'\n");
                 return Errc::EmulationError;
             }
             break;
@@ -190,8 +191,7 @@ static error_code test_emulator(const std::string& program_filename, const std::
         auto expected_value = strtol(expected_line.s.data() + output_template.size(), nullptr, hex_base);
         if (expected_value < 0 || expected_value > std::numeric_limits<u16>::max()) {
             fflush(stdout);
-            fprintf(stderr, "Register value parsing failed on line ");
-            fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
+            fmt::print(stderr, "Register value parsing failed on line '{}'\n", expected_line.s);
             return Errc::InvalidExpectedOutputFile;
         }
 
@@ -202,8 +202,7 @@ static error_code test_emulator(const std::string& program_filename, const std::
             auto reg = lookup_register(expected_reg.data());
             if (!reg) {
                 fflush(stdout);
-                fprintf(stderr, "Unknown register %s on line ", expected_reg.data());
-                fprintf(stderr, "%.*s\n", (int)expected_line.s.size(), expected_line.s.data());
+                fmt::print(stderr, "Unknown register {} on line '{}'", expected_reg, expected_line.s);
                 return Errc::InvalidExpectedOutputFile;
             }
 
@@ -212,7 +211,7 @@ static error_code test_emulator(const std::string& program_filename, const std::
 
         if ((u16)expected_value != value) {
             fflush(stdout);
-            fprintf(stderr, "Register %s has unexpected value 0x%.4x (expected 0x%.4hx)\n", expected_reg.data(), value, (u16)expected_value);
+            fmt::print(stderr, "Register {} has unexpected value {:#06x} (expected {:#06x})\n", expected_reg, value, (u16)expected_value);
             ret = Errc::EmulationError;
         }
 
@@ -270,17 +269,17 @@ static error_code run_tests() {
     for (auto test : disassembly_tests) {
         filename = test_prefix;
         filename += test;
-        printf("\n");
+        fmt::print("\n");
         RET_IF(assemble_and_test_disassembler(filename));
     }
     for (auto test : ce_disassembly_tests) {
         filename = ce_test_prefix;
         filename += test;
-        printf("\n");
+        fmt::print("\n");
         RET_IF(test_disassembler(filename));
     }
 
-    printf("\nRunning emulator tests\n");
+    fmt::print("\nRunning emulator tests\n");
     {
         Intel8086 x86;
         x86.test_set_get();
@@ -301,16 +300,16 @@ static error_code run_tests() {
 
 int main() {
     if (system("nasm --version > /dev/null")) {
-        fprintf(stderr, "Tests require nasm assembler to be installed\n");
+        fmt::print(stderr, "Tests require nasm assembler to be installed\n");
         return EXIT_FAILURE;
     }
 
     if (auto e = run_tests()) {
-        fprintf(stderr, "Error while running tests: %s\n", e.message().data());
+        fmt::print(stderr, "Error while running tests: {}\n", e.message());
         return EXIT_FAILURE;
     }
 
-    printf("\nAll tests passed\n");
+    fmt::print("\nAll tests passed\n");
 
     return 0;
 }

@@ -2,17 +2,18 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fmt/core.h>
 
 #include "program.hpp"
 #include "emulator.hpp"
 
 static int print_instructions_for_help(const char* name) {
-    fprintf(stderr, "%s: type '%s --help' for help.\n", name, name);
+    fmt::print(stderr, "{0}: type '{0} --help ' for help.\n", name);
     return EXIT_FAILURE;
 }
 
 static int print_requires_parameter(const char* name, const char* option) {
-    fprintf(stderr, "%s: option %s: requires parameter\n", name, option);
+    fmt::print(stderr, "{}: option {}: requires parameter\n", name, option);
     return print_instructions_for_help(name);
 }
 
@@ -33,11 +34,11 @@ int main(int argc, char** argv) {
 
     for (i32 i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--help") == 0) {
-            printf("usage: %s  [options...]\n", name);
-            printf(" -d, --disassemble <program>\tDisassemble the program\n");
-            printf(" -e, --execute <program>    \tExecute the program\n");
-            printf(" -D, --dump                 \tDump the memory after executing the program\n");
-            printf(" -C, --estimate-cycles      \tEstimate the number of cycles that instructions take\n");
+            fmt::print("usage: {}  [options...]\n", name);
+            fmt::print(" -d, --disassemble <program>\tDisassemble the program\n");
+            fmt::print(" -e, --execute <program>    \tExecute the program\n");
+            fmt::print(" -D, --dump                 \tDump the memory after executing the program\n");
+            fmt::print(" -C, --estimate-cycles      \tEstimate the number of cycles that instructions take\n");
             return EXIT_SUCCESS;
         } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--disassemble") == 0) {
             option = Disassemble;
@@ -54,18 +55,18 @@ int main(int argc, char** argv) {
         } else if (strcmp(argv[i], "-C") == 0 || strcmp(argv[i], "--estimate-cycles") == 0) {
             estimate_cycles = true;
         } else {
-            fprintf(stderr, "%s: option %s: is unknown\n", name, argv[i]);
+            fmt::print(stderr, "{}: option {}: is unknown\n", name, argv[i]);
             return print_instructions_for_help(name);
         }
     }
 
     bool assemble = filename.ends_with(".asm");
     if (assemble) {
-        printf("; ");
+        fmt::print("; ");
         auto assembled_filename = assemble_program_to_tmp(filename.data());
         if (!assembled_filename) {
             auto e = assembled_filename.error();
-            fprintf(stderr, "Error while assembling file %s with nasm: %s\n", filename.data(), e.message().data());
+            fmt::print(stderr, "Error while assembling file {} with nasm: {}\n", filename, e.message());
             return EXIT_FAILURE;
         }
         filename = *assembled_filename;
@@ -75,23 +76,23 @@ int main(int argc, char** argv) {
     switch (option) {
         case Disassemble:
             if (auto e = disassemble_file(stdout, filename.data(), estimate_cycles)) {
-                fprintf(stderr, "Error while disassembling file %s: %s\n", filename.data(), e.message().data());
+                fmt::print(stderr, "Error while disassembling file {}: {}\n", filename, e.message());
                 return EXIT_FAILURE;
             }
             break;
         case Execute: {
             Intel8086 x86;
             if (auto e = x86.load_program(filename.data())) {
-                fprintf(stderr, "Error while reading file %s: %s\n", filename.data(), e.message().data());
+                fmt::print(stderr, "Error while reading file {}: {}\n", filename, e.message());
                 return EXIT_FAILURE;
             }
             if (auto e = x86.run(estimate_cycles)) {
-                fprintf(stderr, "Error while executing file %s: %s\n", filename.data(), e.message().data());
+                fmt::print(stderr, "Error while executing file {}: {}\n", filename, e.message());
                 return EXIT_FAILURE;
             }
             if (dump_memory) {
                 if (auto e = x86.dump_memory("x86-emulator.memory.data")) {
-                    fprintf(stderr, "Error while dumping the memory: %s\n", e.message().data());
+                    fmt::print(stderr, "Error while dumping the memory: {}\n", e.message());
                     return EXIT_FAILURE;
                 }
             }

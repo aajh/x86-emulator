@@ -1,5 +1,6 @@
 #include "instruction.hpp"
 #include <limits>
+#include <fmt/core.h>
 
 using enum Instruction::Type;
 
@@ -297,7 +298,7 @@ static void decode_rm(std::span<const u8> program, u32 start, Instruction& i) {
 
     if (type == Invalid) {
 #ifndef NDEBUG
-        fprintf(stderr, "decode_rm: unknown instruction 0x%X 0x%X\n", a, b);
+        fmt::print(stderr, "decode_rm: unknown instruction {:#x} {:#x}\n", a, b);
 #endif
         return;
     }
@@ -636,7 +637,7 @@ read_after_prefix:
         }
     } else {
 #ifndef NDEBUG
-        fprintf(stderr, "decode_instruction_at: unknown instruction 0x%X\n", a);
+        fmt::print(stderr, "decode_instruction_at: unknown instruction {:#x}\n", a);
 #endif
     }
 
@@ -683,7 +684,7 @@ u32 Instruction::estimate_cycles(u32 total, FILE* out) const {
             if (o1.type == Register && o2.type == Register) {
                 cycles = 2;
             } else if (o1.type == Register && o2.type == Memory) {
-                if ((o1.reg == ax || o1.reg == al) && o2.memory.eac == EffectiveAddressCalculation::DirectAccess && size == 2 + flags.wide) {
+                if ((o1.reg == ax || o1.reg == al) && o2.memory.eac == EffectiveAddressCalculation::DirectAccess && size == 2u + flags.wide) {
                     cycles = 10;
                     do_eac = false;
                 } else {
@@ -692,7 +693,7 @@ u32 Instruction::estimate_cycles(u32 total, FILE* out) const {
                 transfers = 1;
                 memory_operand = &o2.memory;
             } else if (o1.type == Memory && o2.type == Register) {
-                if ((o2.reg == ax || o2.reg == al) && o1.memory.eac == EffectiveAddressCalculation::DirectAccess && size == 2 + flags.wide) {
+                if ((o2.reg == ax || o2.reg == al) && o1.memory.eac == EffectiveAddressCalculation::DirectAccess && size == 2u + flags.wide) {
                     cycles = 10;
                     do_eac = false;
                 } else {
@@ -713,7 +714,7 @@ u32 Instruction::estimate_cycles(u32 total, FILE* out) const {
     }
     if (cycles == 0 && !memory_operand) {
 #ifndef NDEBUG
-        fprintf(stderr, "cycle_estimate: unimplemented instruction %s\n", name());
+        fmt::print(stderr, "cycle_estimate: unimplemented instruction {}\n", name());
 #endif
         return 0;
     }
@@ -751,12 +752,12 @@ u32 Instruction::estimate_cycles(u32 total, FILE* out) const {
     cycles += ea + transfer_penalty;
 
     if (out) {
-        fprintf(out, "Clocks: +%u = %u", cycles, cycles + total);
+        fmt::print(out, "Clocks: +{} = {}", cycles, cycles + total);
         if (ea || transfer_penalty) {
-            fprintf(out, " (%u", cycles - ea - transfer_penalty);
-            if (ea) fprintf(out, " + %uea", ea);
-            if (transfer_penalty) fprintf(out, " + %u", transfer_penalty);
-            fprintf(out, ")");
+            fmt::print(out, " ({}", cycles - ea - transfer_penalty);
+            if (ea) fmt::print(out, " + {}ea", ea);
+            if (transfer_penalty) fmt::print(out, " + {}p", transfer_penalty);
+            fmt::print(out, ")");
         }
     }
 
@@ -773,32 +774,32 @@ static void print_operand(FILE* out, const Instruction& i, bool operand_index) {
         case None:
             break;
         case Register:
-            fprintf(out, "%s", lookup_register(o.reg));
+            fmt::print(out, "{}", lookup_register(o.reg));
             break;
         case Memory:
             if (operand_index == 0 && (oo.type == None || oo.type == Immediate || i.is_shift()) && (i.type != Call && i.type != Jmp)) {
-                fprintf(out, "%s ", i.flags.wide ? "word" : "byte");
+                fmt::print(out, "{} ", i.flags.wide ? "word" : "byte");
             }
             if (i.segment_override) {
-                fprintf(out, "%s:", lookup_register(*i.segment_override));
+                fmt::print(out, "{}:", lookup_register(*i.segment_override));
             }
             if (o.memory.eac == EffectiveAddressCalculation::DirectAccess) {
-                fprintf(out, "[%d]", o.memory.displacement);
+                fmt::print(out, "[{}]", o.memory.displacement);
                 break;
             }
-            fprintf(out, "[%s", lookup_effective_address_calculation(o.memory.eac));
+            fmt::print(out, "[{}", lookup_effective_address_calculation(o.memory.eac));
             if (o.memory.displacement) {
-                fprintf(out, " %c %d", o.memory.displacement < 0 ? '-' : '+', abs(o.memory.displacement));
+                fmt::print(out, " {} {}", o.memory.displacement < 0 ? '-' : '+', abs(o.memory.displacement));
             }
-            fprintf(out, "]");
+            fmt::print(out, "]");
             break;
         case Immediate:
-            fprintf(out, "%hu", o.immediate);
+            fmt::print(out, "{}", o.immediate);
             break;
         case IpInc:
             i64 ip_inc = (i64)o.ip_inc + (i64)i.size;
-            if (i.flags.ip_inc) fprintf(out, "$%c%lld", ip_inc < 0 ? '-' : '+', abs(ip_inc));
-            else fprintf(out, "%lld", ip_inc + (i64)i.address);
+            if (i.flags.ip_inc) fmt::print(out, "${:+}", ip_inc);
+            else fmt::print(out, "{}", ip_inc + (i64)i.address);
             break;
     }
 }
@@ -806,27 +807,27 @@ static void print_operand(FILE* out, const Instruction& i, bool operand_index) {
 void Instruction::print_assembly(FILE* out) const {
     if (type == Invalid) return;
 
-    if (flags.rep) fprintf(out, flags.rep_nz ? "repnz " : "rep ");
-    if (flags.lock) fprintf(out, "lock ");
+    if (flags.rep) fmt::print(out, "{}", flags.rep_nz ? "repnz " : "rep ");
+    if (flags.lock) fmt::print(out, "lock ");
 
-    fprintf(out, "%s", name());
+    fmt::print(out, "{}", name());
 
     if (flags.intersegment) {
         if (type == Ret) {
-            fprintf(out, "f");
+            fmt::print(out, "f");
         } else if ((type == Call || type == Jmp) && operands[1].type == Operand::Type::None) {
-            fprintf(out, " far");
+            fmt::print(out, " far");
         }
     }
-    if (flags.short_jmp) fprintf(out, " short");
-    if (is_string_manipulation()) fprintf(out, "%c", flags.wide ? 'w' : 'b');
+    if (flags.short_jmp) fmt::print(out, " short");
+    if (is_string_manipulation()) fmt::print(out, "{}", flags.wide ? 'w' : 'b');
 
     if (operands[0].type != Operand::Type::None) {
-        fprintf(out, " ");
+        fmt::print(out, " ");
         print_operand(out, *this, 0);
 
         if (operands[1].type != Operand::Type::None) {
-            fprintf(out, "%s", !flags.intersegment ? ", " : ":");
+            fmt::print(out, "{}", !flags.intersegment ? ", " : ":");
             print_operand(out, *this, 1);
         }
     }

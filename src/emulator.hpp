@@ -3,6 +3,7 @@
 #include "common.hpp"
 #include <cstdio>
 #include <vector>
+#include <fmt/core.h>
 
 #include "instruction.hpp"
 
@@ -70,7 +71,7 @@ public:
         switch (o.type) {
             using enum Operand::Type;
             case None:
-                fprintf(stderr, "Trying to get 'None' operand\n");
+                fmt::print(stderr, "Trying to get 'None' operand\n");
                 assert(false);
                 return 0;
             case Register:
@@ -119,17 +120,17 @@ public:
         switch (o.type) {
             using enum Operand::Type;
             case None:
-                fprintf(stderr, "Trying to set 'None' operand\n");
+                fmt::print(stderr, "Trying to set 'None' operand\n");
                 assert(false);
                 break;
             case Register:
                 set(o.reg, value);
                 break;
             case Immediate:
-                fprintf(stderr, "Cannot modify an immediate value\n");
+                fmt::print(stderr, "Cannot modify an immediate value\n");
                 break;
             case IpInc:
-                fprintf(stderr, "Cannot modify an ip_inc value\n");
+                fmt::print(stderr, "Cannot modify an ip_inc value\n");
                 break;
             case Memory:
                 auto address = calculate_address(o.memory);

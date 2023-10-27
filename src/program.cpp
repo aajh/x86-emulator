@@ -1,6 +1,7 @@
 #include "program.hpp"
 #include <cstdlib>
 #include <unistd.h>
+#include <fmt/core.h>
 
 #include "instruction.hpp"
 
@@ -24,7 +25,7 @@ expected<std::vector<u8>, error_code> read_program(FILE* input_file) {
 expected<std::vector<u8>, error_code> read_program(const char* filename) {
     FILE* input_file = fopen(filename, "rb");
     if (!input_file) {
-        fprintf(stderr, "Couldn't open file %s\n", filename);
+        fmt::print(stderr, "Couldn't open file {}\n", filename);
         return make_unexpected_errno();
     }
     DEFER { fclose(input_file); };
@@ -33,8 +34,8 @@ expected<std::vector<u8>, error_code> read_program(const char* filename) {
 }
 
 error_code disassemble_program(FILE* out, std::span<const u8> program, const char* filename, bool estimate_cycles) {
-    if (filename != nullptr) fprintf(out, "; %s disassembly:\n", filename);
-    fprintf(out, "bits 16\n\n");
+    if (filename != nullptr) fmt::print(out, "; {} disassembly:\n", filename);
+    fmt::print(out, "bits 16\n\n");
 
     u32 cycles = 0;
     u32 i = 0;
@@ -42,16 +43,16 @@ error_code disassemble_program(FILE* out, std::span<const u8> program, const cha
         auto instruction = Instruction::decode_at(program, i);
         if (!instruction) {
             fflush(stdout);
-            fprintf(stderr, "Unknown instruction at location %u (first byte 0x%x)\n", i, program[i]);
+            fmt::print(stderr, "Unknown instruction at location {} (first byte {:#x})\n", i, program[i]);
             return Errc::UnknownInstruction;
         }
 
         instruction->print_assembly(out);
         if (estimate_cycles) {
-            fprintf(out, " ; ");
+            fmt::print(out, " ; ");
             cycles += instruction->estimate_cycles(cycles, out);
         }
-        fprintf(out, "\n");
+        fmt::print(out, "\n");
 
         i += instruction->size;
     }
@@ -74,7 +75,7 @@ expected<std::string, error_code> assemble_program_to_tmp(const char* filename) 
         return e;
     }
 
-    printf("Assembling %s to %s\n", filename, assembled_filename.data());
+    fmt::print("Assembling {} to {}\n", filename, assembled_filename);
     {
         std::string command = "nasm -o ";
         command += assembled_filename;
