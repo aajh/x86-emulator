@@ -35,7 +35,8 @@ struct ReadLineResult {
     std::string_view s;
     size_t length;
 };
-static ReadLineResult read_line(const std::string_view& string, bool skip_whitespace = false) {
+static ReadLineResult read_line(const std::string_view& string) {
+    bool skip_whitespace = true;
     if (string.size() == 0) return {};
 
     auto start = string.find_first_not_of(skip_whitespace ? "\r\n\t\v " : "\r\n");
@@ -129,7 +130,7 @@ static error_code test_emulator(const std::string& program_filename, const std::
     error_code ret = {};
     auto expected_line_end_i = search_i;
     while (expected_line_end_i < expected_output.size()) {
-        auto expected_line = read_line({ expected_output.data() + expected_line_end_i, expected_output.size() - expected_line_end_i }, true);
+        auto expected_line = read_line(std::string_view(expected_output).substr(expected_line_end_i));
 
         constexpr std::string_view flags = "flags:";
         if (expected_line.s.starts_with(flags)) {
